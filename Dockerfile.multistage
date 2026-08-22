@@ -1,0 +1,30 @@
+# Stage 1: Build the Java WAR application
+FROM maven:3.9-eclipse-temurin-11 AS builder
+
+WORKDIR /build
+
+# Copy Maven configuration first for better build caching
+COPY pom.xml   .
+
+# Download dependencies
+RUN mvn dependency:go-offline
+
+# Copy application source
+COPY src ./src
+
+# Build the WAR
+RUN mvn clean package -DskipTests
+
+#stage 2 Runtime
+
+FROM  tomcat:9.0-jdk11-temurin
+
+# Remove Tomcat's default ROOT application
+RUN rm -rf /usr/local/tomcat/webapps/ROOT 
+
+# Copy only the generated WAR from the builder stage
+COPY  --from=builder /build/target/app.war   /usr/local/tomcat/webapps/ROOT.war
+
+EXPOSE 8080
+
+CMD ["catalina.sh", "run"]

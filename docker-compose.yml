@@ -1,0 +1,65 @@
+services:
+  db:
+    image: postgres:15
+    container_name: day36-postgres
+    restart: unless-stopped
+    environment:
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgress_data:/var/lib/postgresql/data
+    networks:
+        three-tier-network:
+            aliases:
+              - db-primary-service
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
+    labels:
+      app: three-tier-java
+      tier: database
+    
+# Java Web Application
+
+  app:
+    image: aniruddhakharve/three-tier-java-app:v3-jlink
+    # build:
+    #     context: .
+    #     dockerfile: Dockerfile.jlink
+    container_name: day36-java-app
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+        DB_HOST: ${DB_HOST}
+        DB_NAME: ${DB_NAME}
+        DB_USER: ${DB_USER}
+        DB_PASSWORD: ${DB_PASSWORD}
+
+    depends_on:
+        db:
+          condition: service_healthy
+
+    networks:
+      - three-tier-network
+    labels:
+      app: three-tier-java
+      tier: application
+
+
+volumes:
+    postgress_data:
+        name: day36-postgres-data
+
+networks:
+    three-tier-network:
+          name: three-tier-network
+          driver: bridge

@@ -1,0 +1,60 @@
+# Stage 1: Build the WAR and create a minimal Java runtime
+FROM maven:3.9-eclipse-temurin-11 AS builder
+
+WORKDIR /build 
+
+# Copy Maven configuration first for better layer caching
+COPY pom.xml  .
+
+# Copy application source
+COPY src ./src
+
+# Download dependencies and Build the WAR
+RUN mvn dependency:go-offline && mvn clean package -DskipTests
+
+# Create a custom minimal Java runtime
+RUN jlink \
+    --module-path "$JAVA_HOME/jmods" \
+    --add-modules java.base,java.logging,java.management,java.naming,java.sql,java.xml,java.desktop,java.security.jgss,java.instrument,jdk.crypto.ec,jdk.unsupported \
+    --strip-debug \
+    --no-man-pages \
+    --no-header-files \
+    --compress=2 \
+    --output /opt/java-minimal
+
+#Stage 2  Minimal Tomcat Run Time
+FROM debian:bookworm-slim
+ENV JAVA_HOME=/opt/java-minimal
+ENV CATALINA_HOME=/opt/tomcat
+ENV PATH="${JAVA_HOME}/bin:${CATALINA_HOME}/bin:${PATH}"
+
+# Install only what Tomcat needs, download Tomcat, create
+# a non-root user, and clean package/cache files.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates \
+       curl \
+    && mkdir -p ${CATALINA_HOME} \
+    && curl -fsSL https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.121/bin/apache-tomcat-9.0.121.tar.gz \
+       -o /tmp/tomcat.tar.gz \
+    && tar -xzf /tmp/tomcat.tar.gz \
+       --strip-components=1 \
+       -C ${CATALINA_HOME} \
+    && rm -f /tmp/tomcat.tar.gz \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf ${CATALINA_HOME}/webapps/* \
+    && groupadd --system tomcat \
+    && useradd --system --gid tomcat --home-dir ${CATALINA_HOME} tomcat \
+    && chown -R tomcat:tomcat ${CATALINA_HOME}
+
+# Copy the minimal Java runtime from the builder
+COPY --from=builder /opt/java-minimal ${JAVA_HOME}
+COPY --from=builder  /build/target/app.war  ${CATALINA_HOME}/webapps/ROOT.war
+
+USER tomcat
+
+WORKDIR ${CATALINA_HOME}
+
+EXPOSE 8080
+
+CMD ["catalina.sh", "run"]
