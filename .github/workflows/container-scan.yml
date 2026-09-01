@@ -1,45 +1,48 @@
 name: Container Image Scan
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
-    trivy-scan:
-        name: Trivy Container Image Scan
-        runs-on: ubuntu-latest
+  trivy-scan:
+    name: Trivy Container Image Scan
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: git checkout
-              uses: actions/checkout@v7
-            
-            - name: Build JLink Docker Image
-              run: | 
-                docker build -f Dockerfile.jlink -t three-tier-app:jlink .
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            - name: Run Trivy Image Scan
-              uses: aquasecurity/trivy-action@v0.36.0
-              with:
-                image-ref: three-tier-app:jlink
-                format: table
-                exit-code: 1
-                ignore-unfixed: true
-                vuln-type: 'os,library'
-                severity: 'CRITICAL,HIGH'
+      - name: Pull Docker Image
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/three-tier-app:${{ github.sha }}
 
-            - name: Run Trivy Scan - SARIF Report
-              if: always()
-              uses: aquasecurity/trivy-action@v0.36.0
-              with:
-                image-ref: three-tier-app:jlink
-                format: sarif
-                output: trivy-results.sarif
-                ignore-unfixed: true
-                vuln-type: 'os,library'
-                severity: 'CRITICAL,HIGH'
+      - name: Run Trivy Image Scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/three-tier-app:${{ github.sha }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
-            - name: Upload Trivy Report
-              if: always()
-              uses: actions/upload-artifact@v4
-              with:
-                name: trivy-container-scan-report
-                path: trivy-results.sarif
+      - name: Run Trivy Scan - SARIF Report
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/three-tier-app:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-container-scan-report
+          path: trivy-results.sarif
