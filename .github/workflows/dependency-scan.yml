@@ -19,10 +19,13 @@ jobs:
                 cache: maven
 
             - name: Run OWASP Dependency Check
+              env:
+                NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
               run: |
                 mvn --batch-mode org.owasp:dependency-check-maven:12.1.0:check \
                 -Dformat=ALL \
-                -DfailBuildOnCVSS=7
+                -DfailBuildOnCVSS=7 \
+                -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
 
             - name: upload Dependency Check Report
               if: always()
