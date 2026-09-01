@@ -89,7 +89,7 @@
                 <version>12.1.0</version>
 
                 <configuration>
-                    <ossIndexAnalyzerEnabled>false</ossIndexAnalyzerEnabled>
+                    <ossindexAnalyzerEnabled>false</ossindexAnalyzerEnabled>
                 </configuration>
             </plugin>
 
