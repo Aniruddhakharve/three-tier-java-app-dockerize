@@ -1,66 +1,73 @@
 name: DAST Scan
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
 
-jobs: 
-    dast:
-        name: OWASP ZAP DAST
-        runs-on: ubuntu-latest
+jobs:
+  dast:
+    name: OWASP ZAP DAST
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: git checkout
-              uses: actions/checkout@v7
-              
-            - name: Build JLink Docker Image
-              run: | 
-                docker build \
-                -f Dockerfile.jlink \
-                -t three-tier-app:jlink \
-                .
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v7
 
-            - name: Start Application Container
-              run: | 
-                docker run -d  --name three-tier-app  -p 8080:8080  three-tier-app:jlink
+      - name: Build JLink Docker Image
+        run: |
+          docker build \
+            -f Dockerfile.jlink \
+            -t three-tier-app:jlink \
+            .
 
-            - name: Wait for Application
-              run: | 
-                echo "Waiting for application to start..."
+      - name: Start Application Container
+        run: |
+          docker run -d \
+            --name three-tier-app \
+            -p 8080:8080 \
+            three-tier-app:jlink
 
-                for i in {1..30}; do
-                  if curl -fsS http://localhost:8080/ > /dev/null; then
-                      echo "Application is ready!"
-                      exit 0
-                    fi
+      - name: Wait for Application
+        run: |
+          echo "Waiting for application to start..."
 
-                    echo "Waiting... ($i/30)"
-                    sleep 5
-                  done
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8080/ > /dev/null; then
+              echo "Application is ready!"
+              exit 0
+            fi
 
-                  echo "Application failed to start."
-                  docker logs three-tier-app
-                  exit 1
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
 
-            - name: OWASP ZAP Baseline Scan
-              uses: zaproxy/action-baseline@v0.15.0
-              with:
-                target: 'http://host.docker.internal:8080'
-                allow_issue_writing: false
-                fail_action: false
-            
-            - name: Upload ZAP Report
-              if: always()
-              uses: actions/upload-artifact@v4
-              with:
-                name: zap-dast-report
-                path: |
-                      report_html.html
-                      report_md.md
-                      report_json.json
-                
-            - name: show container logs
-              if: always()
-              run: |
-                docker logs three-tier-app
+          echo "Application failed to start."
+          docker logs three-tier-app
+          exit 1
 
-            
+      - name: Run OWASP ZAP Baseline Scan
+        run: |
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://127.0.0.1:8080 \
+            -J /zap/wrk/report_json.json \
+            -w /zap/wrk/report_md.md \
+            -r /zap/wrk/report_html.html
+
+      - name: Upload ZAP Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-dast-report
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
+          if-no-files-found: warn
+
+      - name: Show Container Logs
+        if: always()
+        run: |
+          docker logs three-tier-app
