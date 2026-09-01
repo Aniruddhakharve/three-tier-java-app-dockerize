@@ -3,7 +3,6 @@ name: Code Quality
 on:
   workflow_call:
 
-  workflow_dispatch:
 
 jobs:
   code-quality:
