@@ -44,12 +44,12 @@ jobs:
           docker logs three-tier-app
           exit 1
 
-      - name: Create ZAP Reports Directory
+      - name: Prepare ZAP Report Directory
         run: |
-          mkdir -p zap-reports
-          chmod 777 zap-reports
+          mkdir -p "${{ github.workspace }}/zap-reports"
+          chmod 777 "${{ github.workspace }}/zap-reports"
 
-      - name: Run OWASP ZAP Baseline Scan
+      - name: OWASP ZAP Baseline Scan
         run: |
           docker run --rm \
             --network host \
@@ -57,9 +57,10 @@ jobs:
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://127.0.0.1:8080 \
-            -r report_html.html \
+            -J report_json.json \
             -w report_md.md \
-            -J report_json.json
+            -r report_html.html \
+            -I
 
       - name: List ZAP Reports
         if: always()
@@ -74,7 +75,7 @@ jobs:
           name: zap-dast-report
           path: zap-reports/
 
-      - name: Show Application Container Logs
+      - name: Show Application Logs
         if: always()
         run: |
           docker logs three-tier-app
