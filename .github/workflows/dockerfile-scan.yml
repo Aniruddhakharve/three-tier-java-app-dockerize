@@ -1,0 +1,38 @@
+name: Dockerfile Scan
+
+on:
+    workflow_dispatch:
+
+jobs:
+    hadolint:
+        name: Hadolint Dockerfile Scan
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: git checkout
+              uses: actions/checkout@v7
+              with:
+                fetch-depth: 0
+
+            - name: run hadolint
+              uses: hadolint/hadolint-action@v2.0.0
+              with:
+                dockerfile: Dockerfile
+
+            - name: scan Docckerfile for vulnerabilities
+              uses: hadolint/hadolint-action@v3.2.0
+              with:
+                dockerfile: Dockerfile
+                failure-threshold: warning
+
+            - name: Scan Dockerfile.multistage
+              uses: hadolint/hadolint-action@v3.2.0
+              with:
+                dockerfile: Dockerfile.multistage
+                failure-threshold: warning
+
+            - name: Scan Dockerfile.jlink
+              uses: hadolint/hadolint-action@v3.2.0
+              with:
+                dockerfile: Dockerfile.jlink
+                failure-threshold: warning
