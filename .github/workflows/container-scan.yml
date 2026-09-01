@@ -1,7 +1,7 @@
 name: Container Image Scan
 
 on:
-  workflow_dispatch:
+  workflow_call:
 
 jobs:
   trivy-scan:

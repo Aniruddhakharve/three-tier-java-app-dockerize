@@ -2,7 +2,7 @@ name: Docker Build and Push
 
 on:
   
-  workflow_dispatch:
+  workflow_call:
 
 jobs:
     build-and-push:
@@ -29,15 +29,15 @@ jobs:
             -t ${{secrets.DOCKERHUB_USERNAME}}/three-tier-app:latest \
             .
 
-        - name: Scan Docker image with Trivy
-          uses: aquasecurity/trivy-action@v0.36.0
-          with:
-            image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/three-tier-app:${{ github.sha }}
-            format: table
-            exit-code: 1
-            ignore-unfixed: true
-            vuln-type: os,library
-            severity: HIGH,CRITICAL
+        # - name: Scan Docker image with Trivy
+        #   uses: aquasecurity/trivy-action@v0.36.0
+        #   with:
+        #     image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/three-tier-app:${{ github.sha }}
+        #     format: table
+        #     exit-code: 1
+        #     ignore-unfixed: true
+        #     vuln-type: os,library
+        #     severity: HIGH,CRITICAL
 
         - name: push Docker image
           run: | 

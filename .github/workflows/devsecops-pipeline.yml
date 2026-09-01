@@ -1,0 +1,65 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  
+
+jobs:
+
+  # 1. Code Quality
+  code-quality:
+    name: Code Quality
+    uses: ./.github/workflows/code-quality.yml
+    secrets: inherit
+
+  # 2. Secret Scan
+  secret-scan:
+    name: Secret Scan
+    needs: code-quality
+    uses: ./.github/workflows/secrets-scan.yml
+    secrets: inherit
+
+  # 3. Dependency Scan
+  dependency-scan:
+    name: Dependency Scan
+    needs: secret-scan
+    uses: ./.github/workflows/dependency-scan.yml
+    secrets: inherit
+
+  # 4. Dockerfile Scan
+  dockerfile-scan:
+    name: Dockerfile Scan
+    needs: dependency-scan
+    uses: ./.github/workflows/dockerfile-scan.yml
+    secrets: inherit
+
+  # 5. Build and Push Docker Image
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: dockerfile-scan
+    uses: ./.github/workflows/docker-build-push.yml
+    secrets: inherit
+
+  # 6. Container Image Scan
+  container-scan:
+    name: Container Image Scan
+    needs: build-and-push
+    uses: ./.github/workflows/container-scan.yml
+    secrets: inherit
+
+  # 7. DAST Scan
+  dast-scan:
+    name: DAST Scan
+    needs: container-scan
+    uses: ./.github/workflows/dast-scan.yml
+    secrets: inherit
+
+  # 8. Deploy Application
+  deploy:
+    name: Deploy Application
+    needs: dast-scan
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
