@@ -4,8 +4,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Database connection utility class for PostgreSQL
@@ -77,7 +77,7 @@ public class DatabaseConnection {
             
             // First verify if we have proper permissions by checking if we can query the users table
             try {
-                stmt.executeQuery("SELECT 1 FROM users LIMIT 1");
+                stmt.executeQuery("SELECT 1 FROM users LIMIT 1").close();
                 LOGGER.info("Users table exists and is accessible");
             } catch (SQLException e) {
                 // Table might not exist or we don't have permission

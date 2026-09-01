@@ -26,5 +26,5 @@ jobs:
       - name: Run Checkstyle
         run: mvn --batch-mode checkstyle:check
 
-    #   - name: Run SpotBugs and FindSecBugs
-    #     run: mvn --batch-mode spotbugs:check
+      - name: Run SpotBugs and FindSecBugs
+        run: mvn --batch-mode spotbugs:check
