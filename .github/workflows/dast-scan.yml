@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Git Checkout
-        uses: actions/checkout@v7
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
       - name: Build JLink Docker Image
         run: |
@@ -44,32 +44,48 @@ jobs:
           docker logs three-tier-app
           exit 1
 
+      - name: Prepare ZAP Reports Directory
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/zap-reports"
+          chmod -R 777 "$GITHUB_WORKSPACE/zap-reports"
+
+      - name: Pull OWASP ZAP Image
+        run: |
+          docker pull ghcr.io/zaproxy/zaproxy:stable
+
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          mkdir -p zap-reports
-
           docker run --rm \
             --network host \
-            -v "${{ github.workspace }}/zap-reports:/zap/wrk:rw" \
+            -v "$GITHUB_WORKSPACE/zap-reports:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://127.0.0.1:8080 \
-            -J /zap/wrk/report_json.json \
-            -w /zap/wrk/report_md.md \
-            -r /zap/wrk/report_html.html
+            -J report_json.json \
+            -w report_md.md \
+            -r report_html.html
 
-      - name: Upload ZAP Report
+      - name: List ZAP Reports
+        if: always()
+        run: |
+          echo "ZAP reports:"
+          ls -lah zap-reports/
+
+      - name: Upload ZAP Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zap-dast-report
-          path: |
-            zap-reports/report_html.html
-            zap-reports/report_md.md
-            zap-reports/report_json.json
+          path: zap-reports/
           if-no-files-found: warn
 
-      - name: Show Container Logs
+      - name: Show Application Container Logs
         if: always()
         run: |
           docker logs three-tier-app
+
+      - name: Stop Application Container
+        if: always()
+        run: |
+          docker stop three-tier-app || true
+          docker rm three-tier-app || true
