@@ -47,6 +47,7 @@ jobs:
       - name: Create ZAP Reports Directory
         run: |
           mkdir -p zap-reports
+          chmod 777 zap-reports
 
       - name: Run OWASP ZAP Baseline Scan
         run: |
@@ -59,6 +60,12 @@ jobs:
             -r report_html.html \
             -w report_md.md \
             -J report_json.json
+
+      - name: List ZAP Reports
+        if: always()
+        run: |
+          echo "Generated ZAP reports:"
+          ls -lah zap-reports/
 
       - name: Upload ZAP Reports
         if: always()
