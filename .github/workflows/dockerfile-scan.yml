@@ -19,7 +19,7 @@ jobs:
               with:
                 dockerfile: Dockerfile
 
-            - name: scan Docckerfile for vulnerabilities
+            - name: scan Dockerfile 
               uses: hadolint/hadolint-action@v3.2.0
               with:
                 dockerfile: Dockerfile

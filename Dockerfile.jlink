@@ -1,15 +1,15 @@
 # Stage 1: Build the WAR and create a minimal Java runtime
 FROM maven:3.9-eclipse-temurin-11 AS builder
 
-WORKDIR /build 
+WORKDIR /build
 
 # Copy Maven configuration first for better layer caching
-COPY pom.xml  .
+COPY pom.xml .
 
 # Copy application source
 COPY src ./src
 
-# Download dependencies and Build the WAR
+# Download dependencies and build the WAR
 RUN mvn dependency:go-offline && mvn clean package -DskipTests
 
 # Create a custom minimal Java runtime
@@ -22,18 +22,20 @@ RUN jlink \
     --compress=2 \
     --output /opt/java-minimal
 
-#Stage 2  Minimal Tomcat Run Time
+
+# Stage 2: Minimal Tomcat Runtime
 FROM debian:bookworm-slim
+
 ENV JAVA_HOME=/opt/java-minimal
 ENV CATALINA_HOME=/opt/tomcat
 ENV PATH="${JAVA_HOME}/bin:${CATALINA_HOME}/bin:${PATH}"
 
-# Install only what Tomcat needs, download Tomcat, create
-# a non-root user, and clean package/cache files.
+# Install only what Tomcat needs.
+# Package versions are pinned for reproducible builds.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       ca-certificates \
-       curl \
+       ca-certificates=20250419~deb12u1 \
+       curl=7.88.1-10+deb12u15 \
     && mkdir -p ${CATALINA_HOME} \
     && curl -fsSL https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.121/bin/apache-tomcat-9.0.121.tar.gz \
        -o /tmp/tomcat.tar.gz \
@@ -49,8 +51,11 @@ RUN apt-get update \
 
 # Copy the minimal Java runtime from the builder
 COPY --from=builder /opt/java-minimal ${JAVA_HOME}
-COPY --from=builder  /build/target/app.war  ${CATALINA_HOME}/webapps/ROOT.war
 
+# Copy the application WAR
+COPY --from=builder /build/target/app.war ${CATALINA_HOME}/webapps/ROOT.war
+
+# Run Tomcat as a non-root user
 USER tomcat
 
 WORKDIR ${CATALINA_HOME}
