@@ -30,7 +30,7 @@ services:
 # Java Web Application
 
   app:
-    image: aniruddhakharve/three-tier-java-app:v3-jlink
+    image: ${DOCKERHUB_USER}/three-tier-app:${DOCKER_TAG}
     # build:
     #     context: .
     #     dockerfile: Dockerfile.jlink

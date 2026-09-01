@@ -1,0 +1,189 @@
+name: Deploy to EC2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Full Application
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKER_TAG: ${{ github.sha }}
+
+    steps:
+
+      - name: checkout source code
+        uses: actions/checkout@v7
+
+    # # 2. Create .env file from GitHub Secrets
+    #   - name: Create .env file
+    #     run: | 
+    #       cat > .env <<EOF
+    #       POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+    #       POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+    #       POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+    #       DB_HOST=${{ secrets.DB_HOST }}
+    #       DB_NAME=${{ secrets.DB_NAME }}
+    #       DB_USER=${{ secrets.DB_USER }}
+    #       DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+    #       EOF
+
+    # 2. Connect to EC2 and install Docker + Docker Compose
+
+      - name: Setup EC2 server
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+
+            echo "Checking Docker installation..."
+
+            if ! command -v docker &> /dev/null
+            then
+              echo "Docker not found. Installing Docker..."
+
+              sudo apt-get update
+              sudo apt-get install -y docker.io
+
+              sudo systemctl enable docker
+              sudo systemctl start docker
+
+              sudo usermod -aG docker $USER
+
+              echo "Docker installation completed."
+            else
+              echo "Docker is already installed."
+            fi
+
+            echo "Checking Docker Compose installation..."
+
+            if ! docker compose version &> /dev/null
+            then
+              echo "Docker Compose not found. Installing Docker Compose..."
+
+              sudo apt-get update
+              sudo apt-get install -y docker-compose-v2
+
+              echo "Docker Compose installation completed."
+            else
+              echo "Docker Compose is already installed."
+            fi
+
+
+            echo "Creating deployment directory..."
+
+            mkdir -p ~/devops
+
+            echo "EC2 setup completed."
+
+     # 3. Copy docker-compose.yml to EC2
+
+      - name: Copy docker-compose.yml
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: docker-compose.yml
+          target: ~/devops/
+
+     # 4. Create .env file on EC2 using GitHub Secrets
+      - name: Create .env file on EC2
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Creating .env file..."
+
+            cat > ~/devops/.env <<EOF
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+            DOCKERHUB_USER=${{ secrets.DOCKERHUB_USERNAME }}
+            DOCKER_TAG=${{ github.sha }}
+            EOF
+
+            chmod 600 ~/devops/.env
+
+            echo ".env file created successfully."
+
+    # 5. Login to Docker Hub and deploy application
+      - name: Deploy application
+        uses: appleboy/ssh-action@v0.1.9
+        with: 
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Logging into Docker Hub..."
+
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | \
+              docker login \
+              --username "${{ secrets.DOCKERHUB_USERNAME }}" \
+              --password-stdin
+
+
+            echo "Moving to application directory..."
+
+            cd ~/devops
+
+
+            echo "Stopping existing application..."
+
+            docker compose down
+
+
+            echo "Pulling Docker images..."
+
+            docker compose pull
+
+
+            echo "Starting complete application..."
+
+            docker compose up -d --force-recreate
+
+
+            echo "Deployment completed."
+
+
+    
+    # 6. Verify running containers
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Running containers:"
+            docker ps
+
+            echo ""
+            echo "Docker Compose status:"
+            cd ~/devops
+            docker compose ps
+
+
+
+
+
+
+
+
+  
+
+
+          
+
+
