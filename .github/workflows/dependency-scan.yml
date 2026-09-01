@@ -1,0 +1,35 @@
+name: Dependency Scan
+
+on:
+    workflow_dispatch:
+
+jobs:
+    dependency-check:
+        name: OWASP Dependency Check
+        runs-on: ubuntu-latest
+        steps:
+            - name: git Checkout
+              uses: actions/checkout@v7
+
+            - name: setup Java 17
+              uses: actions/setup-java@v5
+              with:
+                distribution: 'temurin'
+                java-version: '17'
+                cache: maven
+
+            - name: Run OWASP Dependency Check
+              run: |
+                mvn --batch-mode org.owasp:dependency-check-maven:12.1.0:check \
+                -Dformat=ALL \
+                -DfailBuildOnCVSS=7
+
+            - name: upload Dependency Check Report
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                name: dependency-check-report
+                path: |
+                  target/dependency-check-report.html
+                  target/dependency-check-report.json
+                  target/dependency-check-report.xml
