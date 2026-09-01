@@ -42,8 +42,7 @@ jobs:
                     mvn --batch-mode org.owasp:dependency-check-maven:12.1.0:check \
                     -Dformat=ALL \
                     -DfailBuildOnCVSS=7 \
-                    -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
-                    -DossIndexAnalyzerEnabled=false
+                    -DnvdApiKeyEnvironmentVariable=NVD_API_KEY 
 
             - name: Save OWASP Dependency Check Cache
               if: always() && steps.dependency-check-cache.outputs.cache-hit != 'true'
