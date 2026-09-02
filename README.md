@@ -2661,6 +2661,8 @@ Recommended screenshots:
 
 Show the complete GitHub Actions run with the overall status marked **Success** and the complete sequence of jobs visible.
 
+![DevSecOps CI/CD Pipeline - Successful Run](./screenshots/01-devsecops-pipeline-success.png)
+
 **02-github-actions-pipeline.png**
 
 Show the GitHub Actions pipeline graph clearly displaying:
@@ -2669,25 +2671,37 @@ Show the GitHub Actions pipeline graph clearly displaying:
 Code Quality → Secret Scan → Dependency Scan → Dockerfile Scan → Build & Push → Container Scan → DAST → Deploy
 ```
 
+![GitHub Actions DevSecOps Pipeline Graph](./screenshots/02-github-actions-pipeline.png)
+
 **03-dockerhub-image-sha-tag.png**
 
 Show the Docker Hub repository containing the newly pushed image and its Git commit SHA tag.
+
+![Docker Hub Image with Git SHA Tag](./screenshots/03-dockerhub-image-sha-tag.png)
 
 **04-trivy-container-scan.png**
 
 Show the Trivy scan output demonstrating that the container image was scanned for HIGH and CRITICAL vulnerabilities and the scan completed successfully.
 
+![Trivy Container Image Scan](./screenshots/04-trivy-container-scan.png)
+
 **05-zap-dast-report.png**
 
 Show the OWASP ZAP DAST output/report generated against the running application.
+
+![OWASP ZAP DAST Scan](./screenshots/05-zap-dast-report.png)
 
 **06-aws-application-running.png**
 
 Show the application successfully running through the AWS EC2 public IP on port `8081`.
 
+![Three-Tier Application Running on AWS EC2](./screenshots/06-aws-application-running.png)
+
 **07-index-change-cicd-test.png**
 
 Show the updated application after changing `index.html` and running the complete CI/CD pipeline again. This demonstrates that a source-code change reached the deployed application.
+
+![CI/CD Change Validation - Updated Application](./screenshots/07-index-change-cicd-test.png)
 
 **08-docker-compose-ps.png**
 
@@ -2698,6 +2712,8 @@ docker compose ps
 ```
 
 with the Java application container running and PostgreSQL showing a healthy status.
+
+![Docker Compose Services Running on EC2](./screenshots/08-docker-compose-ps.png)
 
 ---
 
