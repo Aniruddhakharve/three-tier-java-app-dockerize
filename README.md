@@ -107,6 +107,8 @@
 >                    three-tier-network
 > ```
 >
+> **Current CI/CD deployment note:** The application service is now deployed from the immutable Git commit SHA image produced by the CI/CD pipeline. Docker Compose uses `${DOCKERHUB_USER}/three-tier-app:${DOCKER_TAG}` with `DOCKER_TAG=${GITHUB_SHA}`. The application remains exposed on host port `8081` and maps to Tomcat port `8080` inside the container (`8081:8080`).
+>
 > ---
 >
 > ## 🐳 Docker Build Architecture
@@ -389,7 +391,7 @@
 >
 > Docker Compose was used to orchestrate the application and PostgreSQL services.
 >
-> The application service was configured to build from the custom Dockerfile:
+> During the initial containerization work, the application service was configured to build from the custom Dockerfile:
 >
 > ```yaml
 > app:
@@ -398,7 +400,16 @@
 >     dockerfile: Dockerfile.jlink
 > ```
 >
-> This allowed the Compose workflow to build the optimized application image directly from the project source.
+> After introducing the CI/CD pipeline, the production-style Compose configuration was changed to consume the image built and published by GitHub Actions:
+>
+> ```yaml
+> app:
+>   image: ${DOCKERHUB_USER}/three-tier-app:${DOCKER_TAG}
+>   ports:
+>     - "8081:8080"
+> ```
+>
+> This separates image creation from deployment. GitHub Actions builds and scans the image, pushes it to Docker Hub, and the deployment stage pulls the exact commit-SHA-tagged image.
 >
 > Start the stack:
 >
@@ -756,6 +767,16 @@
 > ```bash
 > docker pull aniruddhakharve/three-tier-java-app:latest
 > ```
+>
+> ### Current CI/CD Image
+>
+> The CI/CD implementation uses a dedicated Docker Hub repository name and immutable Git commit SHA tags:
+>
+> ```text
+> aniruddhakharve/three-tier-app:<github-sha>
+> ```
+>
+> The pipeline also publishes `latest`, but deployment uses the GitHub commit SHA rather than `latest`. This prevents a deployment from silently changing to a different image when a new build is published.
 >
 > ---
 >
@@ -1395,3 +1416,1476 @@
 > ```
 >
 > **This repository demonstrates practical Docker and DevOps skills through the containerization, optimization, networking, persistence, troubleshooting, and distribution of a real Java three-tier application.**
+---
+
+# 🔐 DevSecOps CI/CD Pipeline
+
+After completing the Dockerization and container optimization work, the project was extended into a complete **DevSecOps CI/CD pipeline using GitHub Actions**.
+
+The goal was to move security and quality checks as early as possible in the software delivery lifecycle instead of waiting until after deployment.
+
+The final pipeline automatically:
+
+- checks source-code quality
+- scans the repository for leaked secrets
+- checks third-party dependencies for known vulnerabilities
+- scans Dockerfiles for bad practices
+- builds the optimized Docker image
+- publishes the image to Docker Hub
+- scans the container image for HIGH and CRITICAL vulnerabilities
+- performs Dynamic Application Security Testing using OWASP ZAP
+- deploys the verified image to an AWS EC2 server
+- verifies that the application is running successfully
+
+The complete flow is:
+
+```text
+Developer pushes code to GitHub
+              │
+              ▼
+       ┌─────────────────┐
+       │   Code Quality  │
+       │ Maven /         │
+       │ Checkstyle /    │
+       │ SpotBugs        │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │   Secret Scan   │
+       │    Gitleaks     │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │ Dependency Scan │
+       │ OWASP Dependency│
+       │     Check       │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │ Dockerfile Scan │
+       │    Hadolint     │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │ Build & Push    │
+       │ Docker Image    │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │ Container Scan  │
+       │     Trivy       │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │    DAST Scan    │
+       │    OWASP ZAP    │
+       └────────┬────────┘
+                │
+                ▼
+       ┌─────────────────┐
+       │ Deploy to AWS   │
+       │      EC2        │
+       └────────┬────────┘
+                │
+                ▼
+          Running App
+       EC2:8081 → 8080
+```
+
+## 🎯 Why DevSecOps?
+
+A traditional CI/CD pipeline might build and deploy an application first and perform security checks later.
+
+DevSecOps changes this approach by integrating security throughout the software delivery lifecycle.
+
+```text
+Traditional approach:
+
+Code → Build → Test → Deploy → Security
+
+DevSecOps approach:
+
+Code
+  ↓
+Quality
+  ↓
+Secrets
+  ↓
+Dependencies
+  ↓
+Dockerfile
+  ↓
+Build
+  ↓
+Container Security
+  ↓
+DAST
+  ↓
+Deploy
+```
+
+This is commonly described as a **Shift-Left Security** strategy.
+
+### Why shift security left?
+
+Finding a problem earlier is generally faster and cheaper than discovering it after deployment.
+
+For example:
+
+```text
+Developer writes vulnerable dependency
+                │
+                ▼
+       Dependency Scan
+                │
+                ▼
+          Pipeline fails
+                │
+                ▼
+       Developer fixes it
+```
+
+Instead of:
+
+```text
+Developer writes vulnerable dependency
+                │
+                ▼
+             Build
+                │
+                ▼
+            Deploy
+                │
+                ▼
+       Security team finds it
+                │
+                ▼
+      Rollback / emergency fix
+```
+
+The pipeline therefore acts as a security gate before the application reaches the deployment stage.
+
+---
+
+## ♻️ Reusable GitHub Actions Workflows
+
+Instead of putting the entire DevSecOps pipeline into one very large workflow file, the pipeline was divided into smaller reusable workflows.
+
+Each security or delivery stage has its own workflow file and exposes:
+
+```yaml
+on:
+  workflow_call:
+```
+
+This makes the individual workflows reusable by another workflow.
+
+The project uses a main orchestration workflow:
+
+```text
+.github/workflows/
+│
+├── code-quality.yml
+├── secret-scan.yml
+├── dependency-scan.yml
+├── dockerfile-scan.yml
+├── docker-build-push.yml
+├── container-scan.yml
+├── dast-scan.yml
+├── deploy.yml
+└── devsecops-pipeline.yml
+```
+
+The individual files perform one responsibility, while `devsecops-pipeline.yml` controls the order in which they run.
+
+### Why use reusable workflows?
+
+Reusable workflows provide several benefits:
+
+- separation of responsibilities
+- cleaner main pipeline
+- easier troubleshooting
+- easier maintenance
+- individual workflows can be tested independently
+- the same workflow can be reused by other pipelines
+- security stages become explicit and easy to understand
+
+The main pipeline calls the reusable workflows as jobs.
+
+Example structure:
+
+```yaml
+jobs:
+  code-quality:
+    uses: ./.github/workflows/code-quality.yml
+    secrets: inherit
+
+  secret-scan:
+    needs: code-quality
+    uses: ./.github/workflows/secret-scan.yml
+    secrets: inherit
+```
+
+The `needs:` keyword creates the dependency between stages.
+
+---
+
+## 🔄 Main DevSecOps Pipeline
+
+The main workflow is:
+
+```text
+.github/workflows/devsecops-pipeline.yml
+```
+
+It orchestrates the complete pipeline by calling the reusable workflows one after another.
+
+The final order is:
+
+```text
+Code Quality
+     ↓
+Secret Scan
+     ↓
+Dependency Scan
+     ↓
+Dockerfile Scan
+     ↓
+Build & Push Docker Image
+     ↓
+Container Image Scan
+     ↓
+DAST Scan
+     ↓
+Deploy Application
+```
+
+Each stage depends on the previous stage using `needs:`.
+
+This means a failure in an earlier stage prevents later stages from continuing.
+
+For example:
+
+```text
+Code Quality ❌
+      │
+      X
+      │
+Secret Scan     Not executed
+Dependency      Not executed
+Docker Build    Not executed
+Deploy          Not executed
+```
+
+This creates a security and quality gate before deployment.
+
+### Passing secrets to reusable workflows
+
+The main workflow passes repository secrets to reusable workflows using:
+
+```yaml
+secrets: inherit
+```
+
+This allows the called workflow to access the repository secrets required for its job without hard-coding credentials in workflow files.
+
+---
+
+# 1. 🧹 Code Quality
+
+Workflow:
+
+```text
+code-quality.yml
+```
+
+Trigger for reusable execution:
+
+```yaml
+on:
+  workflow_call:
+```
+
+The workflow checks the Java application before security and packaging stages.
+
+### Tools used
+
+- Maven
+- Checkstyle
+- SpotBugs
+- FindSecBugs
+- Java 11
+
+The workflow performs:
+
+```bash
+mvn --batch-mode compile
+mvn --batch-mode checkstyle:check
+mvn --batch-mode spotbugs:check
+```
+
+### Purpose
+
+This stage catches problems such as:
+
+- compilation errors
+- coding-style violations
+- potential Java bugs
+- security-related code findings detected by SpotBugs/FindSecBugs
+
+The important principle is that poor-quality code should not proceed into later stages.
+
+---
+
+# 2. 🔑 Secret Scan
+
+Workflow:
+
+```text
+secret-scan.yml
+```
+
+Tool:
+
+```text
+Gitleaks
+```
+
+The repository is checked for accidentally committed secrets such as:
+
+- passwords
+- API keys
+- access tokens
+- credentials
+- private keys
+
+The workflow uses a full Git history checkout:
+
+```yaml
+with:
+  fetch-depth: 0
+```
+
+and runs Gitleaks using the GitHub token.
+
+A successful scan is represented by:
+
+```text
+No leaks detected
+```
+
+### Why this stage is early
+
+Secrets should be detected before the code is packaged, containerized, or deployed.
+
+A leaked credential reaching a Docker image or production server can become a much larger security problem.
+
+---
+
+# 3. 📦 Dependency Scan
+
+Workflow:
+
+```text
+dependency-scan.yml
+```
+
+Tool:
+
+```text
+OWASP Dependency-Check
+```
+
+The application uses third-party Maven dependencies. A vulnerable dependency can introduce a security issue even when the application's own source code is correct.
+
+The workflow uses the NVD database through the configured:
+
+```text
+NVD_API_KEY
+```
+
+The scan is configured to fail the build when the vulnerability score reaches the configured threshold:
+
+```text
+CVSS >= 7
+```
+
+The workflow also:
+
+- restores the OWASP Dependency-Check cache
+- uses the NVD API key
+- generates HTML, JSON, and XML reports
+- uploads the reports as GitHub Actions artifacts
+
+### Why dependency scanning matters
+
+```text
+Application code
+       +
+Third-party libraries
+       ↓
+Complete application security
+```
+
+Security cannot be evaluated only from the code written by the developer. The dependencies are part of the application's attack surface.
+
+---
+
+# 4. 🐳 Dockerfile Scan
+
+Workflow:
+
+```text
+dockerfile-scan.yml
+```
+
+Tool:
+
+```text
+Hadolint
+```
+
+Hadolint checks Dockerfiles for common mistakes and Dockerfile best-practice violations.
+
+The project scans the Dockerfiles used during containerization, including:
+
+```text
+Dockerfile
+Dockerfile.multistage
+Dockerfile.jlink
+```
+
+The scan uses a failure threshold of `warning` for the relevant checks.
+
+### Why scan the Dockerfile?
+
+A secure application can still be packaged into an insecure container.
+
+Dockerfile problems can include:
+
+- inefficient image construction
+- unnecessary packages
+- poor layer usage
+- shell-related issues
+- unsafe configuration patterns
+- unnecessary complexity
+
+Therefore Dockerfile security is checked before building and publishing the production image.
+
+---
+
+# 5. 🏗️ Build and Push Docker Image
+
+Workflow:
+
+```text
+docker-build-push.yml
+```
+
+The optimized production image is built from:
+
+```text
+Dockerfile.jlink
+```
+
+### Docker image name
+
+The CI/CD pipeline uses:
+
+```text
+${DOCKERHUB_USERNAME}/three-tier-app
+```
+
+### Image tags
+
+Two tags are produced:
+
+```text
+${DOCKERHUB_USERNAME}/three-tier-app:${{ github.sha }}
+${DOCKERHUB_USERNAME}/three-tier-app:latest
+```
+
+The GitHub commit SHA is used as the immutable version identifier.
+
+For example:
+
+```text
+aniruddhakharve/three-tier-app:9c873e61e1b1969d442a784c708e9aafad2783cb
+```
+
+The exact SHA changes for every commit.
+
+### Why use `github.sha`?
+
+Using only `latest` makes it difficult to know exactly which source-code version produced a running container.
+
+Using the commit SHA provides:
+
+```text
+Git commit
+    │
+    ▼
+Docker image
+    │
+    ▼
+Same SHA tag
+    │
+    ▼
+Exact deployable version
+```
+
+This creates traceability between source code and the deployed container.
+
+### Docker Hub authentication
+
+The workflow authenticates using GitHub repository secrets:
+
+```text
+DOCKERHUB_USERNAME
+DOCKERHUB_TOKEN
+```
+
+The image is pushed to Docker Hub only after the image build succeeds.
+
+---
+
+# 6. 🛡️ Container Image Scan
+
+Workflow:
+
+```text
+container-scan.yml
+```
+
+Tool:
+
+```text
+Trivy
+```
+
+The container image is scanned for:
+
+- operating-system vulnerabilities
+- library vulnerabilities
+
+The pipeline checks:
+
+```text
+CRITICAL
+HIGH
+```
+
+and ignores unfixed vulnerabilities:
+
+```yaml
+ignore-unfixed: true
+```
+
+The scan is configured to fail the job when relevant vulnerabilities are detected.
+
+### SARIF report
+
+A second Trivy scan generates:
+
+```text
+trivy-results.sarif
+```
+
+The SARIF report is uploaded as a GitHub Actions artifact.
+
+### Important pipeline lesson
+
+The container scan must scan an image that actually exists.
+
+During development, the workflow initially attempted to scan:
+
+```text
+${DOCKERHUB_USERNAME}/three-tier-app:${{ github.sha }}
+```
+
+before that exact SHA-tagged image had been published to Docker Hub.
+
+This resulted in:
+
+```text
+manifest unknown
+```
+
+The reason was that Docker attempted to pull the SHA-tagged image from Docker Hub, but the image did not exist there yet.
+
+This helped establish an important CI/CD dependency:
+
+```text
+Build
+  ↓
+Push
+  ↓
+Scan published image
+```
+
+The image lifecycle and job dependencies therefore need to be designed carefully.
+
+---
+
+# 7. 🌐 DAST Scan
+
+Workflow:
+
+```text
+dast-scan.yml
+```
+
+Tool:
+
+```text
+OWASP ZAP
+```
+
+DAST stands for **Dynamic Application Security Testing**.
+
+Unlike static analysis, DAST interacts with the running application from the outside.
+
+The workflow:
+
+1. checks out the source code
+2. builds the JLink Docker image
+3. starts the application container
+4. waits for the application to become ready
+5. runs the OWASP ZAP baseline scan
+6. generates reports
+7. uploads the reports as artifacts
+8. displays application logs
+9. stops and removes the test container
+
+The application is tested through:
+
+```text
+http://127.0.0.1:8080
+```
+
+### Reports
+
+The workflow generates:
+
+```text
+report_json.json
+report_md.md
+report_html.html
+```
+
+These are stored under:
+
+```text
+zap-reports/
+```
+
+and uploaded to GitHub Actions.
+
+### What DAST adds
+
+```text
+Source Code
+   ↓
+SAST / Code Quality
+
+Running Application
+   ↓
+DAST
+```
+
+This allows the pipeline to discover security issues that may only become visible when the application is actually running.
+
+---
+
+# 8. 🚀 Deploy Application
+
+Workflow:
+
+```text
+deploy.yml
+```
+
+The deployment target is an **AWS EC2 server**.
+
+The deployment workflow prepares the server, transfers the required Compose configuration, authenticates with Docker Hub, and starts the application.
+
+### EC2 server preparation
+
+The workflow connects to the EC2 instance through SSH and checks whether Docker is installed.
+
+If Docker is not available, it installs:
+
+```text
+docker.io
+docker-compose-v2
+```
+
+and enables the Docker service.
+
+The deployment directory is:
+
+```text
+~/devops/
+```
+
+### Copying Docker Compose configuration
+
+The Compose file is transferred from the GitHub Actions runner to the EC2 server using SCP.
+
+Example:
+
+```yaml
+- name: Copy files via SSH
+  uses: appleboy/scp-action@v1
+  with:
+    host: ${{ secrets.EC2_HOST }}
+    username: ${{ secrets.EC2_USERNAME }}
+    key: ${{ secrets.EC2_SSH_KEY }}
+    source: docker-compose.yml
+    target: ~/devops/
+```
+
+### Environment variables
+
+The Compose file requires database configuration.
+
+The repository stores the required values as GitHub repository secrets rather than committing the `.env` file to Git.
+
+Configured secrets include:
+
+```text
+POSTGRES_DB
+POSTGRES_USER
+POSTGRES_PASSWORD
+DB_HOST
+DB_NAME
+DB_USER
+DB_PASSWORD
+```
+
+Infrastructure and authentication secrets include:
+
+```text
+DOCKERHUB_USERNAME
+DOCKERHUB_TOKEN
+EC2_HOST
+EC2_USERNAME
+EC2_SSH_KEY
+NVD_API_KEY
+```
+
+Sensitive values are not hard-coded into the workflow source.
+
+> **Security note:** Example database values may appear in the historical Dockerization documentation for learning purposes, but real production credentials should always be stored securely and should never be committed to Git.
+
+### Docker image selection during deployment
+
+The Compose application service uses:
+
+```yaml
+image: ${DOCKERHUB_USER}/three-tier-app:${DOCKER_TAG}
+```
+
+The deployment workflow exports:
+
+```text
+DOCKERHUB_USER=${DOCKERHUB_USERNAME}
+DOCKER_TAG=${GITHUB_SHA}
+```
+
+Therefore the deployment pulls the exact image created from the same Git commit.
+
+```text
+GitHub commit SHA
+       │
+       ▼
+Build image
+       │
+       ▼
+Push SHA-tagged image
+       │
+       ▼
+Deploy same SHA
+       │
+       ▼
+AWS EC2
+```
+
+### Docker Compose deployment
+
+The server runs:
+
+```bash
+docker compose down
+docker compose up -d --force-recreate --pull always
+```
+
+`--pull always` ensures that Docker Compose checks Docker Hub for the requested image tag.
+
+`--force-recreate` ensures the containers are recreated using the deployment configuration.
+
+---
+
+# 🔐 GitHub Repository Secrets
+
+The CI/CD pipeline uses GitHub repository secrets for sensitive values.
+
+| Secret | Purpose |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub authentication token |
+| `EC2_HOST` | AWS EC2 host/IP address |
+| `EC2_USERNAME` | EC2 SSH username |
+| `EC2_SSH_KEY` | SSH private key for EC2 access |
+| `NVD_API_KEY` | NVD API access for OWASP Dependency-Check |
+| `POSTGRES_DB` | PostgreSQL database name |
+| `POSTGRES_USER` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | PostgreSQL password |
+| `DB_HOST` | Database service hostname |
+| `DB_NAME` | Application database name |
+| `DB_USER` | Application database username |
+| `DB_PASSWORD` | Application database password |
+
+No credentials should be committed directly into the repository.
+
+---
+
+# 🧩 Docker Compose in CI/CD
+
+The Compose file evolved during the project.
+
+### Initial local-development approach
+
+The application could be built directly through Compose:
+
+```yaml
+app:
+  build:
+    context: .
+    dockerfile: Dockerfile.jlink
+```
+
+This was useful during the containerization stage because the image could be built locally.
+
+### CI/CD deployment approach
+
+The production-style deployment now consumes the image produced by the CI/CD pipeline:
+
+```yaml
+app:
+  image: ${DOCKERHUB_USER}/three-tier-app:${DOCKER_TAG}
+  container_name: day36-java-app
+  restart: unless-stopped
+  ports:
+    - "8081:8080"
+```
+
+The PostgreSQL service remains:
+
+```yaml
+db:
+  image: postgres:15
+```
+
+Both services communicate through:
+
+```text
+three-tier-network
+```
+
+The database uses the Compose service alias:
+
+```text
+db-primary-service
+```
+
+The application therefore connects to PostgreSQL using Docker's internal DNS rather than an EC2 public IP.
+
+---
+
+# 🔗 Complete CI/CD Architecture
+
+The complete system now connects source control, security, containerization, image distribution, and cloud deployment:
+
+```text
+                         Developer
+                            │
+                            │ git push
+                            ▼
+                     ┌──────────────┐
+                     │    GitHub    │
+                     └──────┬───────┘
+                            │
+                            ▼
+              ┌───────────────────────────┐
+              │   DevSecOps Pipeline      │
+              └─────────────┬─────────────┘
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+          ▼                 ▼                 ▼
+    Code Quality       Secret Scan      Dependency Scan
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            │
+                            ▼
+                    Dockerfile Scan
+                            │
+                            ▼
+                    Docker Build
+                            │
+                            ▼
+                  Docker Image + SHA
+                            │
+                            ▼
+                     Docker Hub
+                            │
+                            ▼
+                    Container Scan
+                            │
+                            ▼
+                        DAST
+                            │
+                            ▼
+                       Deploy
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │   AWS EC2    │
+                    └──────┬───────┘
+                           │
+                           ▼
+                   Docker Compose
+                      ┌────┴────┐
+                      │         │
+                      ▼         ▼
+                 Java App   PostgreSQL
+                 8081:8080    5432
+                      │         │
+                      └────┬────┘
+                           │
+                           ▼
+                    three-tier-network
+```
+
+---
+
+# 📈 CI/CD Verification
+
+The final pipeline was successfully executed from a GitHub push.
+
+The GitHub Actions pipeline completed all stages successfully:
+
+```text
+✓ Code Quality
+✓ Secret Scan
+✓ Dependency Scan
+✓ Dockerfile Scan
+✓ Build and Push Docker Image
+✓ Container Image Scan
+✓ DAST Scan
+✓ Deploy Application
+```
+
+The pipeline produced GitHub Actions artifacts including security reports.
+
+The deployment stage successfully started the application on the AWS EC2 instance.
+
+The application was verified through the EC2 public IP using:
+
+```text
+http://<EC2-IP>:8081
+```
+
+The application displayed the expected three-tier web interface and reported the application and database as healthy.
+
+---
+
+# 🧪 CI/CD Change Detection Test
+
+After the complete pipeline was working, the application's `index.html` was modified and committed to GitHub.
+
+The pipeline was executed again.
+
+The pipeline:
+
+```text
+New Git commit
+      ↓
+Code Quality
+      ↓
+Security Scans
+      ↓
+Docker Build
+      ↓
+New SHA image
+      ↓
+Docker Hub
+      ↓
+Container Scan
+      ↓
+DAST
+      ↓
+Deployment
+```
+
+The updated web page appeared on the AWS EC2 application after the pipeline completed.
+
+This confirmed that the pipeline was not merely executing security checks; it was performing an actual **end-to-end continuous delivery flow** from source-code change to deployed application.
+
+```text
+index.html changed
+       ↓
+Git push
+       ↓
+GitHub Actions
+       ↓
+New Docker image
+       ↓
+New SHA tag
+       ↓
+Docker Hub
+       ↓
+EC2 pulls new image
+       ↓
+Compose recreates container
+       ↓
+Updated application visible
+```
+
+This is one of the most important validations of the project because it demonstrates that a source-code change automatically propagates through the entire delivery pipeline.
+
+---
+
+# 🖥️ Final AWS Deployment
+
+The final application is running on an AWS EC2 instance.
+
+The host exposes:
+
+```text
+EC2 port 8081
+      │
+      ▼
+Docker port 8080
+      │
+      ▼
+Tomcat
+      │
+      ▼
+Java Web Application
+```
+
+PostgreSQL remains available through the container network rather than being required to be publicly exposed for application communication.
+
+The final Compose state can be verified with:
+
+```bash
+docker compose ps
+```
+
+Example structure:
+
+```text
+NAME              SERVICE   STATUS
+
+day36-java-app    app       Up
+
+day36-postgres   db        Up (healthy)
+```
+
+The application can then be accessed through:
+
+```text
+http://<EC2-IP>:8081
+```
+
+---
+
+# 📸 DevSecOps Pipeline Screenshots
+
+The DevSecOps implementation is documented with screenshots showing the major stages of the final pipeline.
+
+Recommended screenshots:
+
+```text
+01-devsecops-pipeline-success.png
+02-github-actions-pipeline.png
+03-dockerhub-image-sha-tag.png
+04-trivy-container-scan.png
+05-zap-dast-report.png
+06-aws-application-running.png
+07-index-change-cicd-test.png
+08-docker-compose-ps.png
+```
+
+### Screenshot purposes
+
+**01-devsecops-pipeline-success.png**
+
+Show the complete GitHub Actions run with the overall status marked **Success** and the complete sequence of jobs visible.
+
+**02-github-actions-pipeline.png**
+
+Show the GitHub Actions pipeline graph clearly displaying:
+
+```text
+Code Quality → Secret Scan → Dependency Scan → Dockerfile Scan → Build & Push → Container Scan → DAST → Deploy
+```
+
+**03-dockerhub-image-sha-tag.png**
+
+Show the Docker Hub repository containing the newly pushed image and its Git commit SHA tag.
+
+**04-trivy-container-scan.png**
+
+Show the Trivy scan output demonstrating that the container image was scanned for HIGH and CRITICAL vulnerabilities and the scan completed successfully.
+
+**05-zap-dast-report.png**
+
+Show the OWASP ZAP DAST output/report generated against the running application.
+
+**06-aws-application-running.png**
+
+Show the application successfully running through the AWS EC2 public IP on port `8081`.
+
+**07-index-change-cicd-test.png**
+
+Show the updated application after changing `index.html` and running the complete CI/CD pipeline again. This demonstrates that a source-code change reached the deployed application.
+
+**08-docker-compose-ps.png**
+
+Show the EC2 terminal running:
+
+```bash
+docker compose ps
+```
+
+with the Java application container running and PostgreSQL showing a healthy status.
+
+---
+
+# 🐞 DevSecOps Problems Encountered & Solutions
+
+Building the complete pipeline introduced several additional real-world CI/CD problems beyond the Dockerization issues documented earlier.
+
+## 1. Container scan attempted to pull an image that did not exist
+
+The container scan initially attempted to scan:
+
+```text
+${DOCKERHUB_USERNAME}/three-tier-app:${GITHUB_SHA}
+```
+
+but Docker returned:
+
+```text
+manifest unknown
+```
+
+### Cause
+
+The SHA-tagged image had not yet been pushed to Docker Hub when the scan attempted to pull it.
+
+### Lesson
+
+Pipeline dependencies must match artifact availability.
+
+An image cannot be pulled from a registry before it has been published there.
+
+The correct relationship is:
+
+```text
+Build → Push → Scan published image
+```
+
+or the scan must explicitly scan the locally built image before it is pushed.
+
+---
+
+## 2. Separating container scanning from image build
+
+The Trivy scan initially existed inside the Docker Build and Push workflow.
+
+A separate reusable `container-scan.yml` workflow was later created to make the pipeline stages clearer.
+
+This introduced the need to carefully coordinate the image lifecycle and the `needs:` dependencies in the main pipeline.
+
+### Lesson
+
+Reusable workflows improve separation of concerns, but artifacts passed between stages must be deliberately designed.
+
+---
+
+## 3. Docker Compose image name changed during CI/CD implementation
+
+The original Dockerization work used:
+
+```text
+three-tier-java-app
+```
+
+The CI/CD pipeline later standardized the production image name as:
+
+```text
+three-tier-app
+```
+
+The Compose reference was therefore changed to:
+
+```yaml
+image: ${DOCKERHUB_USER}/three-tier-app:${DOCKER_TAG}
+```
+
+This kept the deployment aligned with the image produced by the Build and Push workflow.
+
+---
+
+## 4. Using `latest` versus immutable SHA tags
+
+The pipeline publishes both:
+
+```text
+latest
+```
+
+and:
+
+```text
+<github-sha>
+```
+
+However, deployment uses the SHA tag.
+
+### Lesson
+
+`latest` is convenient, but an immutable commit SHA provides much better traceability and reproducibility.
+
+```text
+Commit A → image:A
+Commit B → image:B
+Commit C → image:C
+```
+
+A deployment can therefore be tied directly to the source commit that produced it.
+
+---
+
+## 5. `.env` versus GitHub Secrets
+
+During local Docker Compose development, the application configuration used an `.env` file.
+
+For CI/CD, sensitive values were moved into GitHub repository secrets instead of committing the `.env` file.
+
+This avoids storing credentials directly in the Git repository.
+
+The deployment workflow supplies the required configuration to the deployment environment while keeping sensitive values out of the source code.
+
+---
+
+## 6. Why the EC2 server does not need the Git repository
+
+An early deployment design considered cloning the Git repository on the EC2 server.
+
+The final design does not require the EC2 server to clone the repository just to deploy the application.
+
+Instead:
+
+```text
+GitHub
+  │
+  ├── builds image
+  ├── scans image
+  └── pushes image
+          │
+          ▼
+      Docker Hub
+          │
+          ▼
+        EC2
+          │
+          ├── receives docker-compose.yml
+          └── pulls Docker image
+```
+
+The EC2 server therefore acts primarily as a deployment target rather than a build environment.
+
+This makes the deployment cleaner and reduces the amount of source code and build tooling required on the server.
+
+---
+
+# 🧠 What This Project Demonstrates
+
+The project evolved through several stages:
+
+```text
+Stage 1
+Original Java Three-Tier Application
+        ↓
+Stage 2
+Docker Containerization
+        ↓
+Stage 3
+PostgreSQL + Docker Network + Persistent Volume
+        ↓
+Stage 4
+Multi-Stage Docker Build
+        ↓
+Stage 5
+jlink Java Runtime Optimization
+        ↓
+Stage 6
+Non-Root Container
+        ↓
+Stage 7
+Docker Compose
+        ↓
+Stage 8
+Docker Hub Distribution
+        ↓
+Stage 9
+DevSecOps CI/CD
+        ↓
+Stage 10
+Automated AWS EC2 Deployment
+```
+
+The final project therefore demonstrates the complete path from application source code to a security-validated, versioned, containerized deployment.
+
+---
+
+# 🛠️ Final DevSecOps Technology Stack
+
+| Area | Technology / Concept |
+|---|---|
+| Source Control | Git, GitHub |
+| CI/CD | GitHub Actions |
+| Reusable Pipelines | GitHub Actions `workflow_call` |
+| Pipeline Orchestration | `needs`, `secrets: inherit` |
+| Code Quality | Maven, Checkstyle, SpotBugs, FindSecBugs |
+| Secret Detection | Gitleaks |
+| Dependency Security | OWASP Dependency-Check |
+| Dockerfile Security | Hadolint |
+| Containerization | Docker |
+| Image Build | Docker Buildx |
+| Image Registry | Docker Hub |
+| Container Security | Trivy |
+| Dynamic Security Testing | OWASP ZAP |
+| Application Server | Apache Tomcat 9 |
+| Java | Java 11 runtime / custom `jlink` runtime |
+| Build Tool | Apache Maven |
+| Database | PostgreSQL 15 |
+| Orchestration | Docker Compose |
+| Cloud Deployment | AWS EC2 |
+| Remote Access | SSH / SCP |
+| Configuration | Environment Variables / GitHub Secrets |
+| Image Versioning | GitHub Commit SHA |
+| Persistence | Docker Named Volume |
+| Networking | Docker Bridge Network / Docker DNS |
+
+---
+
+# 💼 Updated Portfolio / Resume Description
+
+**Three-Tier Java Application – Dockerized, Optimized & DevSecOps CI/CD Deployment**
+
+Dockerized and optimized a Java Servlet/Tomcat three-tier application with PostgreSQL using Docker, Docker Compose, multi-stage builds, and a custom `jlink` Java runtime. Reduced the application image from approximately 209 MB to ~81 MB, implemented non-root container execution, Docker networking, persistent database storage, and Docker Hub image distribution. Built a complete DevSecOps CI/CD pipeline using GitHub Actions reusable workflows with code-quality analysis, Gitleaks secret scanning, OWASP Dependency-Check, Hadolint, Trivy container scanning, OWASP ZAP DAST, immutable Git SHA image tagging, and automated AWS EC2 deployment. Validated the pipeline through an end-to-end source-code change that automatically produced and deployed a new container image.
+
+---
+
+# 🎯 Final Learning Outcomes
+
+This project provided hands-on experience with:
+
+- Docker containerization of a real Java application
+- Multi-stage Docker builds
+- Java runtime optimization using `jdeps` and `jlink`
+- Non-root container execution
+- Docker Compose
+- Docker networking and service discovery
+- PostgreSQL containerization
+- Persistent database storage
+- Docker image versioning
+- Docker Hub publishing
+- GitHub Actions CI/CD
+- Reusable GitHub Actions workflows
+- `workflow_call`
+- Job dependencies with `needs:`
+- Secret inheritance with `secrets: inherit`
+- Shift-Left security
+- Static code quality analysis
+- Secret scanning
+- Dependency vulnerability scanning
+- Dockerfile security scanning
+- Container image vulnerability scanning
+- Dynamic application security testing
+- Security report artifacts
+- Immutable Git SHA image tagging
+- SSH/SCP-based deployment
+- AWS EC2 deployment
+- Docker Compose production-style deployment
+- End-to-end CI/CD verification
+- Troubleshooting real pipeline failures
+
+Most importantly, the project demonstrates that DevOps is not simply about building a Docker image or writing a deployment script. The complete workflow connects **source control, code quality, security, packaging, artifact management, deployment, and verification** into one automated software delivery process.
+
+---
+
+# ⭐ Final Project Summary
+
+The project now demonstrates the complete journey:
+
+```text
+Java Three-Tier Application
+            │
+            ▼
+       Dockerization
+            │
+            ▼
+     Image Optimization
+       jdeps + jlink
+            │
+            ▼
+       Docker Compose
+            │
+            ▼
+        Docker Hub
+            │
+            ▼
+     DevSecOps Pipeline
+            │
+     ┌──────┴──────┐
+     │             │
+     ▼             ▼
+  Quality       Security
+     │             │
+     └──────┬──────┘
+            ▼
+       Docker Build
+            │
+            ▼
+      SHA-tagged Image
+            │
+            ▼
+       Trivy + ZAP
+            │
+            ▼
+         AWS EC2
+            │
+            ▼
+     Docker Compose
+            │
+            ▼
+      Running Application
+            │
+            ▼
+     Verified CI/CD Change
+```
+
+**This repository demonstrates a practical end-to-end DevSecOps implementation: from application containerization and Java runtime optimization to automated security validation, immutable image versioning, Docker Hub distribution, and continuous deployment to AWS EC2.**
