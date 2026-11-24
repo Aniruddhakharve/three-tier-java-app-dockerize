@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: three-tier-app
+spec:
+  serviceName: postgres-headless #headless service name --> This connects our StatefulSet to the Headless Service we already created
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres #This tells the StatefulSet which Pods it manages
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          startupProbe: #Has the app/DB finished booting or recovering
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - appuser
+                - -d
+                - appdb
+            periodSeconds: 10    #Checks every 10 seconds.
+            failureThreshold: 30 #Allows 30 consecutive failures before declaring startup unsuccessful.
+          readinessProbe: #Can this pod accept traffic/queries right now?
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - appuser
+                - -d
+                - appdb
+            periodSeconds: 5     #Checks every 5 seconds.
+            timeoutSeconds: 3    #Allows 3 seconds for each check
+            failureThreshold: 3  #Three consecutive failures mark the Pod NotReady
+            successThreshold: 1  #One successful check marks it Ready again
+          livenessProbe: #Is PostgreSQL still healthy, or does its container need to be restarted?
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - appuser
+                - -d
+                - appdb
+            periodSeconds: 10    #Runs the check every 10 seconds.
+            timeoutSeconds: 3    #Allows 3 seconds for the check.
+            failureThreshold: 3  #Three consecutive failures trigger a container restart.
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config #configmap name in manifest file of configmap
+                  key: DB_NAME #configmap key in manifest file of configmap
+
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials #secret name in manifest file of secret
+                  key: DB_USER #secret key in manifest file of secret
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials #secret name in manifest file of secret
+                  key: DB_PASSWORD #secret key in manifest file of secret
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 5Gi

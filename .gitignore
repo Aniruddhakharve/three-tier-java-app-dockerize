@@ -41,3 +41,7 @@ logs/
 .env.local
 local.properties
 .env
+
+# Kubernetes sensitive manifests
+k8s/manifest/secret.yml
+k8s/manifest/secrets/
