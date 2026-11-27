@@ -43,5 +43,5 @@ local.properties
 .env
 
 # Kubernetes sensitive manifests
-k8s/manifest/secret.yml
-k8s/manifest/secrets/
+k8s/manifests/secret.yml
+k8s/manifests/secrets/
