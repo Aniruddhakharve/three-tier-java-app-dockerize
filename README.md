@@ -1,6 +1,6 @@
-# 🚀 Three-Tier Java Application — Dockerized, Optimized & DevSecOps CI/CD
+# 🚀 Three-Tier Java Application — Docker, DevSecOps CI/CD, Kubernetes & Helm
 
-> A hands-on DevOps project that evolves a Java/Tomcat/PostgreSQL three-tier application from **local containerization** to a **security-gated CI/CD pipeline** and automated **AWS EC2 deployment**.
+> An end-to-end, hands-on DevOps portfolio project that takes a Java/Tomcat/PostgreSQL three-tier application through Docker containerization and JVM image optimization, an eight-stage DevSecOps CI/CD pipeline with automated AWS EC2 deployment, and a separate Kubernetes orchestration environment using KIND, Helm, Headlamp and custom RBAC.
 
 [![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?logo=githubactions&logoColor=white)](https://github.com/features/actions)
@@ -8,6 +8,9 @@
 [![DevSecOps](https://img.shields.io/badge/DevSecOps-Shift--Left-7B61FF)](#-phase-2--devsecops-cicd-pipeline)
 [![Java](https://img.shields.io/badge/Java-11-ED8B00?logo=openjdk&logoColor=white)](https://www.java.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-KIND-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Helm](https://img.shields.io/badge/Helm-v4-0F1689?logo=helm&logoColor=white)](https://helm.sh/)
+[![Headlamp](https://img.shields.io/badge/Headlamp-Kubernetes_UI-5B6BC0)](https://headlamp.dev/)
 
 ---
 
@@ -31,45 +34,47 @@
 | Dynamic Security Testing | OWASP ZAP |
 | Deployment | AWS EC2 + SSH/SCP |
 | Image Versioning | GitHub commit SHA |
+| Kubernetes Environment | KIND — Kubernetes in Docker (v1.37.0) |
+| Kubernetes Workloads | Java Deployment + PostgreSQL StatefulSet |
+| Kubernetes Networking | ClusterIP, NodePort and Headless Services |
+| Kubernetes Storage | PersistentVolumeClaims (PVCs) |
+| Configuration | ConfigMaps and Kubernetes Secrets |
+| Workload Reliability | Init container, startup/readiness/liveness probes |
+| Autoscaling | Metrics Server + Horizontal Pod Autoscaler (HPA) |
+| Kubernetes Packaging | Helm v4.3.1; chart templating and release lifecycle |
+| Kubernetes Dashboard | Headlamp Helm chart v0.46.0 |
+| Access Control | Custom ServiceAccounts, ClusterRole and ClusterRoleBindings |
 
 ### 🎯 What makes this project portfolio-ready?
 
-This project demonstrates the complete journey rather than a single isolated DevOps task:
+This project demonstrates a progression across three distinct implementation phases:
 
 ```text
 Java Three-Tier Application
           │
           ▼
-Docker Containerization
+PHASE 1 — DOCKERIZATION
+Docker + Docker Compose
+Multi-stage builds + jdeps + jlink
+Non-root runtime + persistent PostgreSQL
           │
           ▼
-Image Optimization with jdeps + jlink
+PHASE 2 — DEVSECOPS CI/CD
+GitHub Actions reusable workflows
+Code quality + secret/dependency/Dockerfile scans
+Build + Docker Hub + Trivy + OWASP ZAP
+Automated AWS EC2 deployment
           │
           ▼
-Docker Compose
-          │
-          ▼
-Docker Hub
-          │
-          ▼
-DevSecOps CI/CD
-          │
-          ├── Code Quality
-          ├── Secret Scan
-          ├── Dependency Scan
-          ├── Dockerfile Scan
-          ├── Container Scan
-          └── DAST
-          │
-          ▼
-Automated AWS EC2 Deployment
-          │
-          ▼
-Running Application
-          │
-          ▼
-End-to-End CI/CD Change Validation
+PHASE 3 — KUBERNETES & HELM
+KIND cluster + Java Deployment
+PostgreSQL StatefulSet + persistent storage
+Services + probes + ConfigMaps/Secrets
+Metrics Server + HPA
+Helm + Headlamp + custom RBAC
 ```
+
+**Deployment boundary:** Phase 2's AWS EC2 environment runs the application with Docker Compose. Phase 3 is a separate Kubernetes learning and implementation environment built with KIND; it is not presented as a migration of the EC2 deployment to Kubernetes.
 
 ---
 
@@ -86,7 +91,7 @@ End-to-End CI/CD Change Validation
   - [Database Persistence](#-database-persistence)
   - [Docker Compose](#-docker-compose)
   - [Troubleshooting](#-problems-encountered--solutions)
-- [🔐 DevSecOps CI/CD Pipeline](#-phase-2--devsecops-cicd-pipeline)
+- [🔐 Phase 2 — DevSecOps CI/CD Pipeline](#-phase-2--devsecops-cicd-pipeline)
   - [Why DevSecOps?](#-why-devsecops)
   - [Reusable Workflows](#-reusable-github-actions-workflows)
   - [Main Pipeline](#-main-devsecops-pipeline)
@@ -94,15 +99,27 @@ End-to-End CI/CD Change Validation
   - [AWS Deployment](#8--deploy-application)
   - [CI/CD Verification](#-cicd-verification)
   - [Pipeline Problems & Solutions](#-devsecops-problems-encountered--solutions)
-- [🛠️ Final Technology Stack](#️-final-devsecops-technology-stack)
+- [☸️ Phase 3 — Kubernetes & Helm Implementation](#-phase-3--kubernetes--helm-implementation)
+  - [KIND Cluster and Architecture](#-kind-cluster-and-environment)
+  - [Namespace and Application Workload](#-namespace-and-application-workload)
+  - [Java Deployment and NodePort Service](#-java-application-deployment-and-service)
+  - [PostgreSQL StatefulSet and Headless Service](#-postgresql-statefulset-and-headless-service)
+  - [Persistent Storage](#-persistent-storage)
+  - [ConfigMaps and Secrets](#-configuration-with-configmaps-and-secrets)
+  - [Init Container and Health Probes](#-startup-order-and-health-probes)
+  - [Resource Requests, Limits and HPA](#-resource-management-and-horizontal-pod-autoscaler)
+  - [Helm Fundamentals and Practice](#-helm-package-management)
+  - [Headlamp and Custom RBAC](#-headlamp-dashboard-and-custom-rbac)
+  - [Verification and Troubleshooting](#-kubernetes-verification-and-troubleshooting)
+- [🛠️ Final Technology Stack](#-final-devsecops-technology-stack)
 - [💼 Portfolio / Resume Description](#-updated-portfolio--resume-description)
 - [🎯 Final Learning Outcomes](#-final-learning-outcomes)
 
 ---
 
-## 🏆 Final Outcome
+## 🏆 Project Outcomes
 
-The application was successfully transformed from a traditional Java three-tier application into a **containerized, optimized, security-validated and automatically deployed application**. The completed GitHub Actions pipeline passed end-to-end, and a later change to `index.html` successfully travelled through the pipeline and appeared on the AWS-hosted application.
+The project now documents three complementary stages: a containerized and optimized Java application, an eight-stage DevSecOps delivery pipeline deployed to AWS EC2, and a separate Kubernetes implementation on KIND with persistent workloads, autoscaling, Helm-based package management and custom dashboard access control. The GitHub Actions pipeline passed end-to-end, and a later change to `index.html` successfully travelled through the pipeline and appeared on the AWS-hosted application.
 
 The deployed application uses:
 
@@ -119,7 +136,7 @@ Tomcat / Java Application
 PostgreSQL 15
 ```
 
-**The detailed implementation below documents how that result was achieved.**
+**The AWS Compose deployment and the KIND Kubernetes environment are documented separately below.**
 
 ---
 
@@ -1722,7 +1739,7 @@ The project uses a main orchestration workflow:
 .github/workflows/
 │
 ├── code-quality.yml
-├── secret-scan.yml
+├── secrets-scan.yml
 ├── dependency-scan.yml
 ├── dockerfile-scan.yml
 ├── docker-build-push.yml
@@ -2866,44 +2883,602 @@ This makes the deployment cleaner and reduces the amount of source code and buil
 
 ---
 
-# 🧠 What This Project Demonstrates
 
-The project evolved through several stages:
+# ☸️ Phase 3 — Kubernetes & Helm Implementation
+
+> **Phase 3:** Orchestrate the Java application and PostgreSQL database on Kubernetes, introduce persistent workload management and autoscaling, learn Helm's packaging and release lifecycle, and secure Kubernetes dashboard access with custom RBAC.
+
+After completing Dockerization and the DevSecOps CI/CD implementation, I built a separate Kubernetes environment to understand how the same multi-tier application can be represented using Kubernetes resources.
+
+This phase uses a local **KIND (Kubernetes in Docker)** cluster for hands-on learning and validation. It is a separate environment from the AWS EC2 Docker Compose deployment described in Phase 2.
+
+### Phase 3 at a glance
+
+| Area | Implementation | Why it matters |
+|---|---|---|
+| Cluster | KIND, Kubernetes v1.37.0 | Local multi-node Kubernetes practice environment |
+| Namespace | `three-tier-app` | Isolates application resources |
+| Application | Java Deployment, 2 replicas | Declarative application lifecycle and self-healing |
+| Application Service | NodePort | Exposes the app through the local KIND setup |
+| Database | PostgreSQL StatefulSet | Stable identity and persistent database workload |
+| Database Services | ClusterIP + headless Service | Stable in-cluster access and StatefulSet network identity |
+| Storage | PVC-backed persistent volume | Separates database data from Pod lifecycle |
+| Configuration | ConfigMap + Secret | Separates ordinary configuration from sensitive values |
+| Startup coordination | Init container using `pg_isready` | Waits for PostgreSQL before starting the app container |
+| Health management | Startup, readiness and liveness probes | Controls startup, traffic eligibility and restart behavior |
+| Scaling | Metrics Server + HPA | CPU-metric-based horizontal scaling |
+| Package management | Helm v4.3.1 | Template, install, upgrade, inspect and roll back releases |
+| Dashboard | Headlamp chart/app 0.46.0 | Browser-based Kubernetes resource visibility |
+| Authorization | Custom read-only and admin ServiceAccounts | Demonstrates least privilege and controlled administration |
+
+## 🧭 KIND Cluster and Environment
+
+KIND runs Kubernetes nodes as Docker containers. It provides a practical local cluster for learning Kubernetes APIs and testing manifests without provisioning a managed cloud Kubernetes service.
+
+The project cluster is:
 
 ```text
-Stage 1
-Original Java Three-Tier Application
-        ↓
-Stage 2
-Docker Containerization
-        ↓
-Stage 3
-PostgreSQL + Docker Network + Persistent Volume
-        ↓
-Stage 4
-Multi-Stage Docker Build
-        ↓
-Stage 5
-jlink Java Runtime Optimization
-        ↓
-Stage 6
-Non-Root Container
-        ↓
-Stage 7
-Docker Compose
-        ↓
-Stage 8
-Docker Hub Distribution
-        ↓
-Stage 9
-DevSecOps CI/CD
-        ↓
-Stage 10
-Automated AWS EC2 Deployment
+Cluster:  java-cluster
+Context:  kind-java-cluster
+Version:  Kubernetes v1.37.0
+Nodes:
+  - java-cluster-control-plane
+  - java-cluster-worker
 ```
 
-The final project therefore demonstrates the complete path from application source code to a security-validated, versioned, containerized deployment.
+The cluster configuration is maintained at:
 
+```text
+k8s/kind-config.yml
+```
+
+The cluster context was verified with:
+
+```bash
+kubectl config current-context
+kubectl get nodes -o wide
+```
+
+Both KIND nodes were verified in `Ready` state during implementation.
+
+### Why KIND?
+
+- Creates a real Kubernetes cluster locally using Docker containers as nodes.
+- Makes it possible to practice Deployments, StatefulSets, Services, PVCs, probes, HPA and RBAC.
+- Keeps the learning environment separate from the AWS EC2 Compose deployment.
+- Allows manifests to be version-controlled and reapplied consistently.
+
+KIND is a development and learning cluster here; it is not represented as a production-managed Kubernetes control plane.
+
+## 🗂️ Namespace and Application Workload
+
+The application resources are grouped in the namespace:
+
+```text
+three-tier-app
+```
+
+The namespace provides a logical boundary for the Java and PostgreSQL resources. It also makes inspection and cleanup easier because commands can be scoped with `-n three-tier-app`.
+
+Create or inspect the namespace:
+
+```bash
+kubectl apply -f k8s/manifests/namespace.yaml
+kubectl get all -n three-tier-app
+```
+
+The Kubernetes implementation separates the application workload from the database workload rather than placing both processes in one Pod. This allows each tier to have its own lifecycle, configuration, service discovery and scaling behavior.
+
+## ☕ Java Application Deployment and Service
+
+The Java application runs as a Kubernetes **Deployment** with two replicas.
+
+Relevant manifests:
+
+```text
+k8s/manifests/application/deployment.yaml
+k8s/manifests/application/service.yaml
+```
+
+The Deployment declares the desired number of application Pods. Kubernetes continuously reconciles the actual state toward that desired state. If a managed Pod fails, the Deployment's ReplicaSet creates a replacement.
+
+The application is exposed through a **NodePort Service** in the KIND environment. A Service provides a stable network endpoint even when the individual Pod IP addresses change.
+
+### Why a Deployment?
+
+The Java application is treated as a stateless workload in this setup. A Deployment is therefore suitable for managing replicas and rolling updates. The database, which needs stable identity and storage, uses a StatefulSet instead.
+
+### Service types — the practical distinction
+
+| Service type | Typical purpose | Why / where it fits |
+|---|---|---|
+| ClusterIP | Internal cluster access | Default choice for services consumed inside the cluster |
+| NodePort | Exposes a service on a port on each node | Used for the Java app's local KIND access path |
+| LoadBalancer | Requests an external load balancer from a supporting infrastructure provider | Common in cloud clusters; KIND does not automatically provide a cloud load balancer |
+| Headless (`clusterIP: None`) | DNS records resolve to backing Pod addresses | Used with the PostgreSQL StatefulSet for stable Pod DNS identity |
+
+The NodePort service configuration is in `k8s/manifests/application/service.yaml`. The application container listens on port `8080`; the Docker Compose host mapping `8081:8080` belongs to Phase 2 and is not the Kubernetes Service definition.
+
+## 🐘 PostgreSQL StatefulSet and Headless Service
+
+PostgreSQL runs as a **StatefulSet** rather than a Deployment.
+
+Relevant manifests:
+
+```text
+k8s/manifests/database/statefulset.yaml
+k8s/manifests/database/service.yaml
+k8s/manifests/database/headless-service.yaml
+```
+
+A StatefulSet is designed for workloads that benefit from stable Pod identity and stable storage association. PostgreSQL is stateful: its data must survive replacement of the database Pod.
+
+The StatefulSet uses:
+
+- A stable Pod identity.
+- `serviceName` associated with the headless Service.
+- A `volumeClaimTemplates` definition to request persistent storage.
+- Environment configuration sourced from the Kubernetes Secret.
+- Startup, readiness and liveness checks for database health.
+
+### Why use a headless Service?
+
+A normal ClusterIP Service gives clients a stable virtual IP and load-balances traffic to eligible endpoints. A headless Service sets `clusterIP: None`; Kubernetes DNS can return the individual Pod endpoint records instead.
+
+For a StatefulSet, this supports stable network identities such as the ordinal Pod name under the StatefulSet's governing Service. This is useful when a stateful workload needs predictable Pod identity rather than only a generic load-balanced endpoint.
+
+### Why not use a Deployment for PostgreSQL?
+
+A Deployment is excellent for interchangeable, stateless replicas. A StatefulSet provides stronger identity and storage association semantics for stateful workloads. It does not, by itself, make a database highly available or replicate PostgreSQL data; database replication and backup remain separate concerns.
+
+## 💾 Persistent Storage
+
+The PostgreSQL StatefulSet requests storage through `volumeClaimTemplates`, which creates a PersistentVolumeClaim for the database Pod.
+
+The KIND cluster uses the local-path provisioner:
+
+```text
+StorageClass:       rancher.io/local-path
+Volume binding:     WaitForFirstConsumer
+Reclaim policy:     Delete
+```
+
+The PVC is mounted into the PostgreSQL container at its data directory. This separates the database files from the lifecycle of the Pod container.
+
+Inspect storage resources:
+
+```bash
+kubectl get storageclass
+kubectl get pvc -n three-tier-app
+kubectl get pv
+```
+
+**Important storage trade-off:** A PVC gives the Pod a persistent volume abstraction, but the actual durability and reclaim behavior depend on the provisioner and underlying storage. The local-path StorageClass in this KIND environment has a `Delete` reclaim policy; this is a local learning setup, not a substitute for production backup, replication or managed durable storage.
+
+## 🔐 Configuration with ConfigMaps and Secrets
+
+The Kubernetes application uses a ConfigMap for non-sensitive configuration and a Secret for database credentials.
+
+Relevant files:
+
+```text
+k8s/manifests/configmap.yaml
+k8s/manifests/secret.yml       # local-only; ignored by Git
+```
+
+The Java workload consumes configuration through environment variables. The PostgreSQL StatefulSet references the Secret for its database configuration.
+
+### ConfigMap vs Secret
+
+| Resource | Intended content | Example in this project |
+|---|---|---|
+| ConfigMap | Non-confidential configuration | Database host/name and application settings |
+| Secret | Sensitive values | PostgreSQL username and password |
+
+Kubernetes Secret values are base64-encoded in the manifest/API representation; base64 is not encryption. Access must be controlled with RBAC, and production clusters should also use appropriate encryption-at-rest and secret-management practices.
+
+The local Secret manifest is deliberately excluded from Git. Do not commit real credentials or paste tokens/passwords into documentation, issues or screenshots.
+
+Verify resource presence without printing secret values:
+
+```bash
+kubectl get configmap -n three-tier-app
+kubectl get secrets -n three-tier-app
+```
+
+## 🔄 Startup Order and Health Probes
+
+The Java application uses an init container to wait for PostgreSQL readiness before the main application container starts.
+
+The init container checks the database with `pg_isready`. This handles the fact that Kubernetes does not guarantee that separate application and database Pods become ready at the same time.
+
+```text
+Java Pod starts
+      │
+      ▼
+Init container runs
+      │
+      ▼
+pg_isready checks PostgreSQL
+      │
+      ├── Not ready → retry
+      │
+      └── Ready
+            │
+            ▼
+      Java container starts
+```
+
+The Java and PostgreSQL workloads also use Kubernetes probes:
+
+| Probe | What it answers | Kubernetes behavior |
+|---|---|---|
+| Startup | Has this container completed startup? | Delays liveness/readiness evaluation until startup succeeds |
+| Readiness | Should this Pod receive Service traffic now? | Removes an unready Pod from Service endpoints |
+| Liveness | Is this container unhealthy and should it be restarted? | Restarts the container after the configured failure threshold |
+
+A readiness failure does not automatically restart the container. A liveness failure can trigger a restart. A startup probe is useful when an application needs more time to initialize.
+
+## 📈 Resource Management and Horizontal Pod Autoscaler
+
+The Java Deployment defines CPU/memory resource requests and limits. Requests help the scheduler place Pods; limits constrain resource consumption at runtime.
+
+The cluster also has Metrics Server installed so Kubernetes can obtain resource metrics for autoscaling.
+
+HPA manifest:
+
+```text
+k8s/manifests/application/hpa.yaml
+```
+
+The configured Horizontal Pod Autoscaler uses:
+
+```text
+Target CPU utilization: 60%
+Minimum replicas:       2
+Maximum replicas:       5
+```
+
+The HPA adjusts the Java Deployment replica count based on observed CPU utilization relative to the configured requests. It does not scale PostgreSQL in this project.
+
+Inspect autoscaling:
+
+```bash
+kubectl get hpa -n three-tier-app
+kubectl describe hpa -n three-tier-app
+kubectl top nodes
+kubectl top pods -n three-tier-app
+```
+
+Metrics Server provides resource metrics; it is not a full observability stack. Prometheus/Grafana and application-level monitoring are separate capabilities.
+
+## ⛵ Helm Package Management
+
+After working with raw Kubernetes manifests, I learned Helm as a package manager for Kubernetes applications.
+
+Environment and practice:
+
+```text
+Helm version:       v4.3.1
+Practice chart:     helm-practice
+Practice namespace: helm-practice
+```
+
+### Core Helm concepts learned
+
+| Concept | Meaning |
+|---|---|
+| Chart | A package containing Kubernetes templates and default configuration |
+| Release | An installed instance of a chart in a cluster |
+| Repository | A location from which charts can be discovered and downloaded |
+| `Chart.yaml` | Chart metadata, chart version and app version |
+| `values.yaml` | Default values used by templates |
+| `templates/` | Kubernetes resource templates rendered by Helm |
+| `_helpers.tpl` | Reusable named template definitions |
+| `helm template` | Renders manifests locally without installing a release |
+| `helm lint` | Checks a chart for common issues |
+
+A chart's `version` identifies the chart package version. `appVersion` is application metadata; it does not automatically select the container image tag unless the chart's templates explicitly use it.
+
+### Templating and values
+
+The practice chart covered Go template expressions and commonly used Helm objects/functions:
+
+- `.Values` for configurable chart values.
+- `.Chart` for chart metadata.
+- `.Release` for release metadata.
+- `include` and `define` for reusable helpers.
+- `default`, `toYaml`, `nindent`, `if` and `with` for template composition.
+- `nameOverride` and `fullnameOverride` for resource naming.
+
+Values precedence was practiced as:
+
+```text
+Chart defaults (values.yaml)
+          ↓ overridden by
+Custom values file (-f)
+          ↓ overridden by
+Command-line values (--set)
+```
+
+Hands-on commands included:
+
+```bash
+helm create helm-practice
+helm lint ./helm-practice
+helm template nginx-demo ./helm-practice
+helm template nginx-demo ./helm-practice -f custom-values.yaml
+```
+
+### Helm release lifecycle
+
+An NGINX release was installed and managed in the isolated `helm-practice` namespace. The lifecycle included install, upgrade, history inspection, rollback to an earlier revision and uninstall.
+
+Typical lifecycle commands:
+
+```bash
+helm install nginx-demo <chart-reference> -n helm-practice --create-namespace
+helm list -n helm-practice
+helm history nginx-demo -n helm-practice
+helm rollback nginx-demo 1 -n helm-practice
+helm uninstall nginx-demo -n helm-practice
+```
+
+The practice release was removed after the exercise; the namespace was intentionally retained. These commands show the release lifecycle pattern; the actual chart reference used for an installation should be the chart source configured in that environment.
+
+## 🖥️ Headlamp Dashboard and Custom RBAC
+
+Headlamp was installed into its own namespace using the official Headlamp Helm chart repository.
+
+```text
+Namespace:       headlamp
+Helm release:    headlamp
+Chart/App:       0.46.0
+Service:         ClusterIP, port 80
+Pod:             1/1 Running (verified)
+```
+
+The chart repository used was:
+
+```text
+https://kubernetes-sigs.github.io/headlamp/
+```
+
+Custom values are maintained in:
+
+```text
+k8s/manifests/headlamp/values.yaml
+```
+
+The installation uses the in-cluster configuration and a custom ServiceAccount. The chart's automatic ClusterRoleBinding creation was disabled because the project intentionally manages access through its own RBAC manifests.
+
+Install/inspect commands:
+
+```bash
+helm install headlamp headlamp/headlamp \
+  --namespace headlamp \
+  -f k8s/manifests/headlamp/values.yaml
+
+helm list -n headlamp
+kubectl get pods,svc -n headlamp
+```
+
+The service is ClusterIP, so it is accessed locally with port-forwarding:
+
+```bash
+kubectl port-forward -n headlamp svc/headlamp 8080:80
+```
+
+Then open:
+
+```text
+http://localhost:8080
+```
+
+### Custom read-only access
+
+The project created a dedicated read-only identity:
+
+```text
+ServiceAccount: headlamp-sa
+ClusterRole:    headlamp-readonly
+Binding:        headlamp-readonly-binding
+```
+
+The read-only ClusterRole grants `get`, `list` and `watch` for selected resources, including Pods, Services, Namespaces, Nodes, ConfigMaps, PersistentVolumes, PersistentVolumeClaims, Deployments, DaemonSets, ReplicaSets, StatefulSets, Jobs and CronJobs.
+
+It does not grant create, update, patch or delete permissions. In particular, the read-only identity cannot inspect Kubernetes Secrets through the tested RBAC permissions.
+
+### Custom administrator access
+
+A separate administrator identity was created:
+
+```text
+ServiceAccount: headlamp-admin-sa
+Binding:        headlamp-admin-binding
+Role:           cluster-admin (built-in ClusterRole)
+```
+
+This identity is bound to the built-in `cluster-admin` ClusterRole and therefore has broad cluster-wide permissions, including access to Secrets. It should be used only when administrative access is required and handled carefully.
+
+RBAC manifests are maintained in:
+
+```text
+k8s/manifests/headlamp/
+```
+
+### RBAC validation
+
+Permissions were tested with `kubectl auth can-i` and through the Headlamp UI.
+
+Examples:
+
+```bash
+kubectl auth can-i list pods \
+  --as=system:serviceaccount:headlamp:headlamp-sa
+
+kubectl auth can-i delete pods \
+  --as=system:serviceaccount:headlamp:headlamp-sa
+
+kubectl auth can-i get secrets \
+  --as=system:serviceaccount:headlamp:headlamp-sa
+
+kubectl auth can-i get secrets \
+  --as=system:serviceaccount:headlamp:headlamp-admin-sa
+```
+
+The read-only account could view permitted resources but could not create/delete test ConfigMaps or view Secrets. The administrator account could perform the administrative test operations. Temporary test resources were cleaned up afterward.
+
+Short-lived login tokens were generated when needed using `kubectl create token`. Tokens are credentials: do not commit them, add them to README files, or share them in screenshots.
+
+## 🧪 Kubernetes Verification and Troubleshooting
+
+The Kubernetes phase was verified by inspecting the cluster, namespace resources, workload health, storage, autoscaling and dashboard permissions.
+
+Useful commands:
+
+```bash
+# Cluster and context
+kubectl config current-context
+kubectl get nodes -o wide
+
+# Application namespace
+kubectl get all -n three-tier-app
+kubectl get pods -n three-tier-app -o wide
+kubectl get svc -n three-tier-app
+
+# Database and persistent storage
+kubectl get statefulset,pods,svc,pvc -n three-tier-app
+kubectl get pv
+
+# Autoscaling and resource metrics
+kubectl get hpa -n three-tier-app
+kubectl top pods -n three-tier-app
+
+# Headlamp and Helm
+helm list -n headlamp
+kubectl get pods,svc -n headlamp
+kubectl auth can-i list pods --as=system:serviceaccount:headlamp:headlamp-sa
+```
+
+### Important implementation lessons
+
+- A Deployment is appropriate for interchangeable application replicas; a StatefulSet provides stable identity and storage association for the database workload.
+- A Service gives clients a stable endpoint while Pod IPs can change.
+- A headless Service is useful for stable StatefulSet Pod DNS identity; it is not the same as a ClusterIP load-balancing Service.
+- A PVC decouples the database data directory from a Pod's container lifecycle, but actual durability depends on the storage provisioner and its reclaim policy.
+- Init containers coordinate startup dependencies; probes serve different purposes and should not be treated as interchangeable.
+- HPA needs resource metrics and resource requests to calculate CPU utilization meaningfully.
+- Helm releases track revisions, enabling history inspection and rollback.
+- RBAC should grant only the verbs and resources an identity needs. A read-only dashboard identity should not receive `cluster-admin`.
+
+### Kubernetes documentation and manifests
+
+The Kubernetes implementation is documented in the repository under:
+
+```text
+k8s/
+├── README.md
+├── kind-config.yml
+├── learning-logs/
+│   └── hpa-implementation-and-testing.md
+└── manifests/
+    ├── application/
+    │   ├── deployment.yaml
+    │   ├── hpa.yaml
+    │   └── service.yaml
+    ├── database/
+    │   ├── headless-service.yaml
+    │   ├── service.yaml
+    │   └── statefulset.yaml
+    ├── headlamp/
+    │   ├── headlamp-admin-sa.yaml
+    │   ├── headlamp-readonly-binding.yaml
+    │   ├── headlamp-readonly-clusterrole.yaml
+    │   ├── headlamp-readonly-sa.yaml
+    │   ├── values.yaml
+    │   └── README.md
+    ├── metrics-server/
+    │   └── components.yaml
+    ├── configmap.yaml
+    ├── namespace.yaml
+    └── secret.yml                 # local-only; ignored by Git
+```
+
+The actual manifests remain the source of truth for exact image references, ports, resource values and credentials. The Secret manifest is intentionally excluded from version control.
+
+### Current repository layout (high-level)
+
+```text
+three-tier-java-app-dockerize/
+├── .github/
+│   └── workflows/                 # Main pipeline + reusable DevSecOps workflows
+├── k8s/
+│   ├── README.md                  # Kubernetes implementation guide
+│   ├── kind-config.yml
+│   ├── learning-logs/
+│   │   └── hpa-implementation-and-testing.md
+│   └── manifests/                 # Application, database, metrics-server, Headlamp and config
+├── screenshots/                   # Docker and DevSecOps implementation evidence
+├── scripts/                       # Build, deployment and verification helpers
+├── src/                            # Java application source and web resources
+├── Dockerfile
+├── Dockerfile.multistage
+├── Dockerfile.jlink
+├── docker-compose.yml              # EC2/Compose deployment configuration
+├── pom.xml
+├── checkstyle.xml
+├── effective-pom.xml
+├── README.md
+└── three-tier-java-devsecops-project-continuation-log.md
+```
+
+This is a high-level orientation view; the detailed Kubernetes manifest tree is listed above, and the reusable workflow filenames are documented in Phase 2.
+
+---
+
+# 🧠 What This Project Demonstrates
+
+The project progressed from a source application to container delivery, automated security validation and Kubernetes orchestration:
+
+```text
+Original Java Three-Tier Application
+              │
+              ▼
+Docker Containerization + PostgreSQL
+              │
+              ▼
+Multi-Stage Build + jdeps + jlink
+              │
+              ▼
+Non-Root Runtime + Docker Compose
+              │
+              ▼
+Docker Hub Image Distribution
+              │
+              ▼
+Eight-Stage GitHub Actions DevSecOps Pipeline
+              │
+              ▼
+Trivy + OWASP ZAP Security Validation
+              │
+              ▼
+Automated AWS EC2 Deployment (Docker Compose)
+              │
+              ▼
+Separate KIND Kubernetes Environment
+              │
+              ▼
+Deployments + StatefulSets + Services + PVCs
+              │
+              ▼
+Probes + Metrics Server + HPA
+              │
+              ▼
+Helm + Headlamp + Custom RBAC
+```
+
+The project demonstrates practical understanding across containerization, image optimization, secure software delivery, cloud deployment, Kubernetes workload management, persistent storage, autoscaling, package management and access control.
 ---
 
 # 🛠️ Final DevSecOps Technology Stack
@@ -2933,15 +3508,24 @@ The final project therefore demonstrates the complete path from application sour
 | Configuration | Environment Variables / GitHub Secrets |
 | Image Versioning | GitHub Commit SHA |
 | Persistence | Docker Named Volume |
-| Networking | Docker Bridge Network / Docker DNS |
+| Networking | Docker Bridge Network / Docker DNS; Kubernetes Services and DNS |
+| Kubernetes | KIND, kubectl, Deployments, StatefulSets, Namespaces |
+| Kubernetes Networking | ClusterIP, NodePort, Headless Services |
+| Kubernetes Storage | PersistentVolumes, PersistentVolumeClaims, StorageClass |
+| Kubernetes Configuration | ConfigMaps, Secrets |
+| Workload Reliability | Init Containers, Startup/Readiness/Liveness Probes |
+| Autoscaling | Metrics Server, Horizontal Pod Autoscaler |
+| Kubernetes Package Management | Helm v4, Charts, Templates, Releases, Rollbacks |
+| Kubernetes Dashboard | Headlamp |
+| Kubernetes Security | ServiceAccounts, ClusterRoles, ClusterRoleBindings, RBAC |
 
 ---
 
-# 💼 Updated Portfolio / Resume Description
+# 💼 Portfolio / Resume Description
 
-**Three-Tier Java Application – Dockerized, Optimized & DevSecOps CI/CD Deployment**
+**Three-Tier Java Application — Docker, DevSecOps CI/CD, AWS EC2, Kubernetes & Helm**
 
-Dockerized and optimized a Java Servlet/Tomcat three-tier application with PostgreSQL using Docker, Docker Compose, multi-stage builds, and a custom `jlink` Java runtime. Reduced the application image from approximately 209 MB to ~81 MB, implemented non-root container execution, Docker networking, persistent database storage, and Docker Hub image distribution. Built a complete DevSecOps CI/CD pipeline using GitHub Actions reusable workflows with code-quality analysis, Gitleaks secret scanning, OWASP Dependency-Check, Hadolint, Trivy container scanning, OWASP ZAP DAST, immutable Git SHA image tagging, and automated AWS EC2 deployment. Validated the pipeline through an end-to-end source-code change that automatically produced and deployed a new container image.
+Containerized and optimized a Java Servlet/Tomcat application with PostgreSQL using Docker, Docker Compose, multi-stage builds and a custom `jlink` Java 11 runtime, reducing the application image from approximately 209 MB to ~81 MB (~61%). Implemented non-root container execution, persistent database storage and Docker Hub distribution. Built an eight-stage reusable GitHub Actions DevSecOps pipeline covering code quality, Gitleaks, OWASP Dependency-Check, Hadolint, Trivy and OWASP ZAP, with immutable Git SHA image tagging and automated Docker Compose deployment to AWS EC2. Validated end-to-end delivery by changing application code and observing the updated version on EC2. Separately deployed the Java and PostgreSQL workloads to a KIND Kubernetes cluster using Deployments, StatefulSets, Services, PVCs, ConfigMaps, Secrets, probes and HPA; practiced Helm chart templating and release rollback; and installed Headlamp with custom read-only and administrator RBAC.
 
 ---
 
@@ -2978,60 +3562,76 @@ This project provided hands-on experience with:
 - Docker Compose production-style deployment
 - End-to-end CI/CD verification
 - Troubleshooting real pipeline failures
+- KIND cluster creation and Kubernetes context management
+- Kubernetes namespaces and declarative manifests
+- Deployment-based application replicas and self-healing
+- StatefulSet identity and persistent database storage
+- ClusterIP, NodePort and headless Services
+- PersistentVolumes, PersistentVolumeClaims and StorageClasses
+- ConfigMaps and Kubernetes Secrets
+- Init containers and database startup coordination
+- Startup, readiness and liveness probes
+- Resource requests and limits
+- Metrics Server and CPU-based HPA
+- Helm charts, values, templates and helper functions
+- Helm install, upgrade, history, rollback and uninstall
+- Headlamp installation and configuration through Helm
+- Kubernetes ServiceAccounts, ClusterRoles and ClusterRoleBindings
+- RBAC least-privilege validation with `kubectl auth can-i`
 
-Most importantly, the project demonstrates that DevOps is not simply about building a Docker image or writing a deployment script. The complete workflow connects **source control, code quality, security, packaging, artifact management, deployment, and verification** into one automated software delivery process.
+Most importantly, the project demonstrates that DevOps is not simply about building a Docker image or writing a deployment script. Across the three phases, the work connects **source control, code quality, security, packaging, artifact management, cloud deployment, Kubernetes orchestration, workload reliability, autoscaling and access control**. The AWS Compose deployment and KIND Kubernetes implementation are separate environments with different purposes.
 
 ---
 
 # ⭐ Final Project Summary
 
-The project now demonstrates the complete journey:
+This repository documents the evolution of a Java three-tier application through three practical DevOps phases.
 
 ```text
-Java Three-Tier Application
-            │
-            ▼
-       Dockerization
-            │
-            ▼
-     Image Optimization
-       jdeps + jlink
-            │
-            ▼
-       Docker Compose
-            │
-            ▼
-        Docker Hub
-            │
-            ▼
-     DevSecOps Pipeline
-            │
-     ┌──────┴──────┐
-     │             │
-     ▼             ▼
-  Quality       Security
-     │             │
-     └──────┬──────┘
-            ▼
-       Docker Build
-            │
-            ▼
-      SHA-tagged Image
-            │
-            ▼
-       Trivy + ZAP
-            │
-            ▼
-         AWS EC2
-            │
-            ▼
-     Docker Compose
-            │
-            ▼
-      Running Application
-            │
-            ▼
-     Verified CI/CD Change
+                    Java Three-Tier Application
+                                │
+                                ▼
+                    PHASE 1 — DOCKERIZATION
+                                │
+                Docker + Docker Compose + PostgreSQL
+                                │
+                   Multi-stage build + jdeps + jlink
+                                │
+                      ~209 MB → ~81 MB image
+                                │
+                                ▼
+                    PHASE 2 — DEVSECOPS CI/CD
+                                │
+                 GitHub Actions reusable workflows
+                                │
+             Quality + Secret + Dependency + Dockerfile
+                    + Trivy + OWASP ZAP scans
+                                │
+                      Docker Hub SHA image
+                                │
+                   Automated deployment to EC2
+                      using Docker Compose
+                                │
+                  End-to-end change validation
+                                │
+                                ▼
+                  PHASE 3 — KUBERNETES & HELM
+                                │
+                         KIND Cluster
+                                │
+                  Java Deployment (2 replicas)
+                                │
+                 PostgreSQL StatefulSet + PVC
+                                │
+              Services + ConfigMaps + Secrets + Probes
+                                │
+                       Metrics Server + HPA
+                                │
+                      Helm + Headlamp
+                                │
+                    Custom Kubernetes RBAC
 ```
 
-**This repository demonstrates a practical end-to-end DevSecOps implementation: from application containerization and Java runtime optimization to automated security validation, immutable image versioning, Docker Hub distribution, and continuous deployment to AWS EC2.**
+**The result is a portfolio project that shows more than tool familiarity:** it documents the architecture, implementation choices, trade-offs, troubleshooting and verification involved in containerizing an application, automating its secure delivery, and operating its workloads on Kubernetes.
+
+> **Environment clarity:** AWS EC2 runs the Phase 2 Docker Compose deployment. Phase 3 is a separate KIND-based Kubernetes implementation used to practice Kubernetes orchestration, Helm and RBAC. The README does not claim that the EC2 deployment has been migrated to Kubernetes.
